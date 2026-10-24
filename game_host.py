@@ -15,6 +15,7 @@ enviados para o modo externo.
 
 from __future__ import annotations
 
+import gc
 import os
 import runpy
 import sys
@@ -52,6 +53,9 @@ class GameHost:
         # Alguns jogos chamam pygame.display.flip() sem limitar o FPS. Sem
         # este teto, um jogo simples pode ocupar 100% da CPU do TV box.
         self._frame_clock = pygame.time.Clock()
+        # Alguns jogos chamam update() e flip() no mesmo frame. Sem isso, o
+        # host desenharia duas vezes e o relógio dormiria duas vezes.
+        self._last_render_ms = -1000
 
         self.original: dict[str, object] = {}
         self.timers: set[int] = set()
@@ -225,6 +229,13 @@ class GameHost:
         pygame.key.set_repeat(250, 85)
         pygame.event.clear()
 
+        # Libera a superfície virtual e os módulos carregados pelo jogo antes
+        # de voltar ao menu. Em 1 GB de RAM isso evita fragmentação a cada
+        # ciclo abrir/fechar jogo.
+        self.virtual_surface = None
+        self.virtual_size = (960, 540)
+        gc.collect()
+
         self._installed = False
 
     # ------------------------------------------------------------------
@@ -282,6 +293,11 @@ class GameHost:
     def render(self) -> None:
         if self._rendering:
             return
+        now = pygame.time.get_ticks()
+        # update() + flip() no mesmo frame: desenha apenas uma vez.
+        if now - self._last_render_ms < 2:
+            return
+        self._last_render_ms = now
         self._rendering = True
         try:
             self.frames_rendered += 1

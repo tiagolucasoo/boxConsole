@@ -32,7 +32,34 @@ top_left_x = (s_width - play_width) // 2
 top_left_y = s_height - play_height - 50
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-filepath = os.path.join(BASE_DIR, 'highscore.txt')
+
+
+def _data_dir():
+    """Grava recordes fora da pasta do jogo (evita lixo no repositório)."""
+    if os.name == 'nt':
+        base = os.environ.get('APPDATA') or BASE_DIR
+    else:
+        base = os.environ.get('XDG_DATA_HOME') or os.path.join(
+            os.path.expanduser('~'), '.local', 'share'
+        )
+    path = os.path.join(base, 'boxconsole')
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+filepath = os.path.join(_data_dir(), 'tetris-highscore.txt')
+_legacy_score = os.path.join(BASE_DIR, 'highscore.txt')
+if not os.path.exists(filepath):
+    try:
+        if os.path.exists(_legacy_score):
+            with open(_legacy_score, 'r') as _src, open(filepath, 'w') as _dst:
+                _dst.write(_src.read().strip() or '0')
+        else:
+            with open(filepath, 'w') as _dst:
+                _dst.write('0')
+    except OSError:
+        filepath = _legacy_score
+
 fontpath = os.path.join(BASE_DIR, 'arcade.TTF')
 fontpath_mario = os.path.join(BASE_DIR, 'mario.ttf')
 
@@ -397,7 +424,7 @@ def main(window):
         fall_time += clock.get_rawtime()  # returns in milliseconds
         level_time += clock.get_rawtime()
 
-        clock.tick()  # updates clock
+        clock.tick(30)  # teto de 30 FPS no H3
 
         if level_time/1000 > 5:    # make the difficulty harder every 10 seconds
             level_time = 0

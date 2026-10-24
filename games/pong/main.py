@@ -15,7 +15,7 @@ import sys
 import pygame
 
 WIDTH, HEIGHT = 800, 600
-FPS = 60
+FPS = 30
 WIN_SCORE = 7
 
 BG = (18, 20, 28)

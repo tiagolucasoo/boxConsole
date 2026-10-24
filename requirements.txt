@@ -1,15 +1,4 @@
-# Launcher e jogos em Pygame (Doom, Flappy, Zelda, Tetris, Aliens, Sudoku,
-# Snake, Pong, Breakout, 2048, Bomberman, Speed Racer)
+# BoxConsole — dependências mínimas para TV box ARMv7
+# O Pygame roda o launcher e todos os jogos embutidos.
 colorama>=0.4.6
 pygame>=2.0
-
-# Pac-Man
-keyboard>=0.13.5
-pyfiglet>=0.8.post1
-
-# Street Fighter
-numpy>=1.24
-opencv-python>=4.8
-
-# Super Mario (desfoque gaussiano)
-scipy>=1.10

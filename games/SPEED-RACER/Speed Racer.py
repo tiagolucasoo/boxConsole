@@ -3,6 +3,25 @@ import time
 import random
 import os
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+if os.name == "nt":
+    _data_base = os.environ.get("APPDATA") or BASE_DIR
+else:
+    _data_base = os.environ.get("XDG_DATA_HOME") or os.path.join(
+        os.path.expanduser("~"), ".local", "share"
+    )
+_data_dir = os.path.join(_data_base, "boxconsole")
+os.makedirs(_data_dir, exist_ok=True)
+HIGHSCORE_PATH = os.path.join(_data_dir, "speed-racer-highscore.txt")
+_legacy_highscore = os.path.join(BASE_DIR, "data", "Highscore.txt")
+if not os.path.exists(HIGHSCORE_PATH) and os.path.exists(_legacy_highscore):
+    try:
+        with open(_legacy_highscore, "r") as _src, open(HIGHSCORE_PATH, "w") as _dst:
+            _dst.write(_src.read().strip() or "0")
+    except OSError:
+        pass
+
 pygame.init()
 pygame.mixer.init()
 
@@ -10,7 +29,7 @@ gameWindow = pygame.display.set_mode((1200,700))
 pygame.display.set_caption("Speed Racer")
 
 clock = pygame.time.Clock()
-fps = 60
+fps = 30
 
 font1 = pygame.font.SysFont("Franklin Gothic Demi Cond",50)
 
@@ -164,8 +183,8 @@ def gameLoop():
     fuelSpeed = 8
     dist = 0
 
-    with open("data/Highscore.txt","r") as f:
-        highscore = int(f.read())
+    with open(HIGHSCORE_PATH, "r") as f:
+        highscore = int(f.read().strip() or 0)
 
     slow = False
     plotFuel = True
@@ -192,7 +211,7 @@ def gameLoop():
             go = pygame.image.load("data/images/GameOver.png")
             go = pygame.transform.scale(go,(1239,752)).convert_alpha()
 
-            with open("data/Highscore.txt","w") as f:
+            with open(HIGHSCORE_PATH, "w") as f:
                 f.write(str(highscore))
 
             while not exitScreen:
@@ -357,13 +376,13 @@ def homeScreen():
     pygame.mixer.music.load("data/audios/rtn.mp3")
     pygame.mixer.music.play()
 
-    if not os.path.exists("data/Highscore.txt"):
-        with open("data/Highscore.txt","w") as f:
+    if not os.path.exists(HIGHSCORE_PATH):
+        with open(HIGHSCORE_PATH, "w") as f:
             f.write("0")
-            highscore = 0
+        highscore = 0
     else:
-        with open("data/Highscore.txt","r") as f:
-            highscore = int(f.read())
+        with open(HIGHSCORE_PATH, "r") as f:
+            highscore = int(f.read().strip() or 0)
 
 
     background = pygame.image.load("data/images/Background.png")

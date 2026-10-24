@@ -3,7 +3,7 @@ import math
 # game settings
 # 960x540 é exatamente a área de jogo do BoxConsole. Renderizar em
 # 1600x900 e reduzir depois desperdiça CPU/GPU em TV boxes ARMv7.
-RES = WIDTH, HEIGHT = 960, 540
+RES = WIDTH, HEIGHT = 640, 360
 # RES = WIDTH, HEIGHT = 1920, 1080
 HALF_WIDTH = WIDTH // 2
 HALF_HEIGHT = HEIGHT // 2
@@ -25,6 +25,7 @@ FLOOR_COLOR = (30, 30, 30)
 
 FOV = math.pi / 3
 HALF_FOV = FOV / 2
+# 320 raios (antes 480) com SCALE=2 cobre a largura de 640 px sem faixas.
 NUM_RAYS = WIDTH // 2
 HALF_NUM_RAYS = NUM_RAYS // 2
 DELTA_ANGLE = FOV / NUM_RAYS

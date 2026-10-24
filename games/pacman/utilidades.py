@@ -1,5 +1,3 @@
-import pyfiglet 
-from pyfiglet import Figlet 
 from colorama import Fore, Back, Style, init 
 import os
 import time
@@ -7,8 +5,6 @@ import sys
 
 init(autoreset=True)
 
-f = Figlet()
-fontes = f.getFonts()
 uni = '\u1A27'
 dificuldade_mapa = {"1": "facil", "2": "medio", "3": "dificil"}
 dificuldade_view = {"1": "Fácil", "2": "Médio", "3": "Difícil"}
@@ -44,11 +40,13 @@ Z ######################################################
 """
 
 def logo(texto: str, cor=Fore.YELLOW):
-    ascii = pyfiglet.figlet_format(texto, font="slant")
-    print(cor + ascii + Fore.RESET)
+    """Banner leve; não depende mais de pyfiglet no ARMv7."""
+    titulo = str(texto).upper()
+    barra = "=" * max(18, len(titulo) + 4)
+    print(cor + f"\n  {barra}\n  {titulo}\n  {barra}\n" + Fore.RESET)
 
 def descricao(texto: str, fonte="standard", cor=Fore.CYAN):
-    print(cor + pyfiglet.figlet_format(texto, font=fonte) + Fore.RESET)
+    print(cor + str(texto) + Fore.RESET)
 
 def descricao2(texto: str, cor=Fore.YELLOW) -> None:    
     print(cor + texto + Fore.RESET)
@@ -85,7 +83,9 @@ def tempo_passado(inicio: float) -> float:
     return round(time.time() - inicio, 1)
 
 def limpar_tela():
-    os.system('cls')
+    # ANSI funciona no Linux e no Windows 10/11; evita abrir um processo cls.
+    sys.stdout.write("\x1b[2J\x1b[3J\x1b[H")
+    sys.stdout.flush()
 
 def loading(mensagem="Carregando", duracao=2, simbolo=".") -> None:
     print(Fore.YELLOW + mensagem, end="", flush=True)

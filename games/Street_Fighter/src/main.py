@@ -1,9 +1,6 @@
-import math
 import pygame
 from pygame import mixer
 from pygame import font
-import cv2
-import numpy as np
 import os
 import sys
 from fighter import Fighter
@@ -24,11 +21,10 @@ def resource_path(relative_path):
 mixer.init()
 pygame.init()
 
-# Constants
-info = pygame.display.Info()
-SCREEN_WIDTH = info.current_w
-SCREEN_HEIGHT = info.current_h
-FPS = 60
+# Constants — resolução fixa e leve para o H3 (o host escala se precisar).
+SCREEN_WIDTH = 960
+SCREEN_HEIGHT = 540
+FPS = 30
 ROUND_OVER_COOLDOWN = 3000
 
 # Colors
@@ -45,16 +41,25 @@ pygame.display.set_caption("Street Fighter")
 clock = pygame.time.Clock()
 
 # Load Assets
-bg_image = cv2.imread(resource_path("assets/images/bg1.jpg"))
+bg_image = pygame.image.load(resource_path("assets/images/bg1.jpg")).convert()
+bg_normal = pygame.transform.smoothscale(bg_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
 victory_img = pygame.image.load(resource_path("assets/images/victory.png")).convert_alpha()
+victory_img_big = pygame.transform.scale(
+    victory_img, (victory_img.get_width() * 2, victory_img.get_height() * 2)
+)
 warrior_victory_img = pygame.image.load(resource_path("assets/images/warrior.png")).convert_alpha()
 wizard_victory_img = pygame.image.load(resource_path("assets/images/wizard.png")).convert_alpha()
 
 # Fonts
 menu_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 50)
-menu_font_title = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 100)  # Larger font for title
+menu_font_title = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 100)
 count_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 80)
 score_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 30)
+score_font_large = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 60)
+controls_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 35)
+small_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 25)
+player_label_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 25)
+countdown_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 100)
 
 # Music and Sounds
 pygame.mixer.music.load(resource_path("assets/audio/music.mp3"))
@@ -75,12 +80,12 @@ WIZARD_ANIMATION_STEPS = [8, 8, 1, 8, 8, 3, 7]
 
 # Fighter Data
 WARRIOR_SIZE = 162
-WARRIOR_SCALE = 4
+WARRIOR_SCALE = 2
 WARRIOR_OFFSET = [72, 46]
 WARRIOR_DATA = [WARRIOR_SIZE, WARRIOR_SCALE, WARRIOR_OFFSET]
 WIZARD_SIZE = 250
-WIZARD_SCALE = 3
-WIZARD_OFFSET = [112, 97]
+WIZARD_SCALE = 2
+WIZARD_OFFSET = [112, 110]
 WIZARD_DATA = [WIZARD_SIZE, WIZARD_SCALE, WIZARD_OFFSET]
 
 # Game Variables
@@ -93,21 +98,17 @@ def draw_text(text, font, color, x, y):
 
 
 def blur_bg(image):
-    image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    blurred_image = cv2.GaussianBlur(image_bgr, (15, 15), 0)
-    return cv2.cvtColor(blurred_image, cv2.COLOR_BGR2RGB)
+    """Desfoque barato: reduz e amplia uma única vez no início."""
+    small = pygame.transform.smoothscale(image, (96, 54))
+    return pygame.transform.smoothscale(small, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
 
-def draw_bg(image, is_game_started=False):
-    if not is_game_started:
-        blurred_bg = blur_bg(image)
-        blurred_bg = pygame.surfarray.make_surface(np.transpose(blurred_bg, (1, 0, 2)))
-        blurred_bg = pygame.transform.scale(blurred_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
-        screen.blit(blurred_bg, (0, 0))
-    else:
-        image = pygame.surfarray.make_surface(np.transpose(image, (1, 0, 2)))
-        image = pygame.transform.scale(image, (SCREEN_WIDTH, SCREEN_HEIGHT))
-        screen.blit(image, (0, 0))
+bg_blurred = blur_bg(bg_normal)
+
+
+def draw_bg(image=None, is_game_started=False):
+    # As duas versões do fundo já estão prontas; nada de blur por frame.
+    screen.blit(bg_normal if is_game_started else bg_blurred, (0, 0))
 
 
 def draw_button(text, font, text_col, button_col, x, y, width, height):
@@ -123,9 +124,8 @@ def victory_screen(winner_img):
     start_time = pygame.time.get_ticks()
     while pygame.time.get_ticks() - start_time < ROUND_OVER_COOLDOWN:
 
-        resized_victory_img = pygame.transform.scale(victory_img, (victory_img.get_width() * 2, victory_img.get_height() * 2))
-        screen.blit(resized_victory_img, (SCREEN_WIDTH // 2 - resized_victory_img.get_width() // 2,
-                                          SCREEN_HEIGHT // 2 - resized_victory_img.get_height() // 2 - 50))
+        screen.blit(victory_img_big, (SCREEN_WIDTH // 2 - victory_img_big.get_width() // 2,
+                                      SCREEN_HEIGHT // 2 - victory_img_big.get_height() // 2 - 50))
 
         screen.blit(winner_img, (SCREEN_WIDTH // 2 - winner_img.get_width() // 2,
                                  SCREEN_HEIGHT // 2 - winner_img.get_height() // 2 + 100))
@@ -148,25 +148,27 @@ def draw_gradient_text(text, font, x, y, colors):
         screen.blit(img, (x + i * offset, y + i * offset))
 
 
-def main_menu():
-    animation_start_time = pygame.time.get_ticks()
+def make_title_surface(text, font, colors):
+    width, height = font.size(text)
+    surface = pygame.Surface((width + 8, height + 8), pygame.SRCALPHA)
+    for index, color in enumerate(colors):
+        surface.blit(font.render(text, True, color), (index * 2, index * 2))
+    return surface
 
+
+title_text = "STREET FIGHTER"
+title_surface = make_title_surface(title_text, menu_font_title, [BLUE, GREEN, YELLOW])
+title_shadow = menu_font_title.render(title_text, True, BLACK)
+
+
+def main_menu():
     while True:
         draw_bg(bg_image, is_game_started=False)
 
-        elapsed_time = (pygame.time.get_ticks() - animation_start_time) / 1000
-        scale_factor = 1 + 0.05 * math.sin(elapsed_time * 2 * math.pi)  # Slight scaling
-        scaled_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), int(100 * scale_factor))
-
-        title_text = "STREET FIGHTER"
-        colors = [BLUE, GREEN, YELLOW]
-        shadow_color = BLACK
-        title_x = SCREEN_WIDTH // 2 - scaled_font.size(title_text)[0] // 2
-        title_y = SCREEN_HEIGHT // 6
-
-        shadow_offset = 5
-        draw_text(title_text, scaled_font, shadow_color, title_x + shadow_offset, title_y + shadow_offset)
-        draw_gradient_text(title_text, scaled_font, title_x, title_y, colors)
+        title_x = SCREEN_WIDTH // 2 - menu_font_title.size(title_text)[0] // 2
+        title_y = 10
+        screen.blit(title_shadow, (title_x + 5, title_y + 5))
+        screen.blit(title_surface, (title_x, title_y))
 
         button_width = 280
         button_height = 60
@@ -210,9 +212,8 @@ def scores_screen():
         draw_bg(bg_image)
 
         scores_title = "SCORES"
-        draw_text(scores_title, menu_font_title, RED, SCREEN_WIDTH // 2 - menu_font_title.size(scores_title)[0] // 2, 50)
+        draw_text(scores_title, menu_font_title, RED, SCREEN_WIDTH // 2 - menu_font_title.size(scores_title)[0] // 2, 20)
 
-        score_font_large = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 60)  # Increased size for scores
         p1_text = f"P1: {score[0]}"
         p2_text = f"P2: {score[1]}"
         shadow_offset = 5
@@ -227,7 +228,10 @@ def scores_screen():
         draw_text(p2_text, score_font_large, BLACK, p2_text_x + shadow_offset, p2_text_y + shadow_offset)  # Shadow
         draw_gradient_text(p2_text, score_font_large, p2_text_x, p2_text_y, [RED, YELLOW])  # Gradient
 
-        return_button = draw_button("RETURN TO MAIN MENU", menu_font, BLACK, GREEN, SCREEN_WIDTH // 2 - 220, 700, 500, 50)
+        return_button = draw_button(
+            "RETURN TO MAIN MENU", menu_font, BLACK, GREEN,
+            SCREEN_WIDTH // 2 - 220, SCREEN_HEIGHT - 55, 500, 50,
+        )
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -247,11 +251,7 @@ def controls_screen():
 
         # Title
         controls_title = "CONTROLS GUIDE"
-        draw_text(controls_title, menu_font_title, GREEN, SCREEN_WIDTH // 2 - menu_font_title.size(controls_title)[0] // 2, 50)
-        
-        # Controls information
-        controls_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 35)
-        small_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 25)
+        draw_text(controls_title, menu_font_title, GREEN, SCREEN_WIDTH // 2 - menu_font_title.size(controls_title)[0] // 2, 20)
         
         # Movement controls
         draw_text("MOVEMENT:", controls_font, WHITE, 100, 150)
@@ -279,7 +279,10 @@ def controls_screen():
         draw_text("• Watch for AI patterns!", small_font, GREEN, 500, 460)
         
         # Return button
-        return_button = draw_button("RETURN TO MAIN MENU", menu_font, BLACK, GREEN, SCREEN_WIDTH // 2 - 220, 550, 500, 50)
+        return_button = draw_button(
+            "RETURN TO MAIN MENU", menu_font, BLACK, GREEN,
+            SCREEN_WIDTH // 2 - 220, SCREEN_HEIGHT - 55, 500, 50,
+        )
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -295,8 +298,8 @@ def controls_screen():
 
 def reset_game():
     global fighter_1, fighter_2
-    fighter_1 = Fighter(1, 200, 310, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
-    fighter_2 = Fighter(2, 700, 310, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
+    fighter_1 = Fighter(1, 180, 250, False, WARRIOR_DATA, warrior_sheet, WARRIOR_ANIMATION_STEPS, sword_fx)
+    fighter_2 = Fighter(2, 700, 250, True, WIZARD_DATA, wizard_sheet, WIZARD_ANIMATION_STEPS, magic_fx)
 
 
 def draw_health_bar(health, x, y):
@@ -307,7 +310,6 @@ def draw_health_bar(health, x, y):
 
 
 def countdown():
-    countdown_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 100)
     countdown_texts = ["3", "2", "1", "FIGHT!"]
 
     for text in countdown_texts:
@@ -339,7 +341,6 @@ def game_loop():
         draw_text(f"P2: {score[1]}", score_font, RED, SCREEN_WIDTH - 220, 20)
         
         # Add player identification labels
-        player_label_font = pygame.font.Font(resource_path("assets/fonts/turok.ttf"), 25)
         draw_text("USER", player_label_font, BLUE, 20, 85)
         draw_text("COMPUTER", player_label_font, (255, 100, 0), SCREEN_WIDTH - 220, 85)
         

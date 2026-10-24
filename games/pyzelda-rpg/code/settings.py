@@ -1,9 +1,9 @@
 from support import get_path
 
 # game setup
-WIDTH = 1280
-HEIGHT = 720
-FPS = 120
+WIDTH = 960
+HEIGHT = 540
+FPS = 30
 TILESIZE = 64
 HITBOX_OFFSET = {
     'player': -26,

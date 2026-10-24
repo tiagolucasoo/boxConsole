@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """BoxConsole — entrada principal.
 
-O menu Pygame é o modo padrão, com capas em ``covers/``.
+O menu Pygame é o modo padrão, com capas em ``images/``.
 Se o Pygame não estiver disponível (ou a tela falhar), o mesmo launcher abre
 automaticamente o menu de terminal, que continua completo em ``console_ui.py``.
 
@@ -68,7 +68,7 @@ def main(argv: list[str] | None = None) -> None:
     except ImportError:
         print("Pygame não encontrado. Abrindo o menu de terminal...")
         print("Para usar o menu com capas, instale pygame (ex.: sudo apt install python3-pygame).")
-        print("No Linux/TV box, o script boxconsole.sh cria o ambiente e instala.")
+        print("No Linux/TV box, instale pelo sistema: sudo apt install python3-pygame")
         run_terminal()
         return
 

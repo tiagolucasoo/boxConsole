@@ -1,15 +1,20 @@
 import os
+import sys
 import time
-import keyboard
 from colorama import Fore, Back, Style, init
 import utilidades
 from utilidades import mapa_original
+from terminal_input import TerminalInput
 import strategy
 
 def pacman(usuario, dificuldade):
     init(autoreset=True)
+    entrada = TerminalInput()
+    entrada.enable()
+
     def limpar_tela():
-        os.system('cls' if os.name == 'nt' else 'clear')
+        sys.stdout.write("\x1b[2J\x1b[3J\x1b[H")
+        sys.stdout.flush()
 
     def desenhar_mapa(matriz, substituicoes, fantasmas):
         """Desenha o mapa, aplicando fundos dinâmicos para os fantasmas."""
@@ -94,6 +99,7 @@ def pacman(usuario, dificuldade):
         velocidade_jogo = 0.10
 
     while True:
+        entrada.poll()
         limpar_tela()
         utilidades.logo("PacMan Py")
         tempo = utilidades.tempo_passado(inicio_tempo)
@@ -128,6 +134,7 @@ def pacman(usuario, dificuldade):
 
             # --- ADICIONE ESTA VERIFICAÇÃO ---
             if proximo_y == pacman_y and proximo_x == pacman_x:
+                entrada.restore()
                 return ('game_over', pontuacao, tempo)
             # --- FIM DA ADIÇÃO ---
 
@@ -141,21 +148,25 @@ def pacman(usuario, dificuldade):
         # Posição futura, começa igual à atual
         proximo_y, proximo_x = pacman_y, pacman_x
 
-        if keyboard.is_pressed('up') or keyboard.is_pressed('w'):
+        if entrada.is_pressed('up') or entrada.is_pressed('w'):
             proximo_y -= 1
-        elif keyboard.is_pressed('down') or keyboard.is_pressed('s'):
+        elif entrada.is_pressed('down') or entrada.is_pressed('s'):
             proximo_y += 1
-        elif keyboard.is_pressed('left') or keyboard.is_pressed('a'):
+        elif entrada.is_pressed('left') or entrada.is_pressed('a'):
             proximo_x -= 1
-        elif keyboard.is_pressed('right') or keyboard.is_pressed('d'):
+        elif entrada.is_pressed('right') or entrada.is_pressed('d'):
             proximo_x += 1
-        elif keyboard.is_pressed('esc'):
+        elif entrada.is_pressed('esc'):
             utilidades.limpar_tela()
             utilidades.logo("Jogo Pausado")
 
+            # Devolve o terminal ao modo normal para o menu usar input().
+            entrada.restore()
             acao = utilidades.menu()
             if acao == 'continuar':
                 limpar_tela()
+                entrada.enable()
+                entrada.poll()
                 pass
 
             elif acao == 'resetar':
@@ -174,9 +185,11 @@ def pacman(usuario, dificuldade):
                 alimentos_restantes -= 1
 
                 if alimentos_restantes == 0:
+                    entrada.restore()
                     return ('vitoria', pontuacao, tempo)
 
             if destino in ['8', '7', '6', '5']:
+                entrada.restore()
                 return ('game_over', pontuacao, tempo)
             
 

@@ -59,6 +59,11 @@ except Exception:
     pass
 
 BASE_DIR = Path(__file__).resolve().parent
+# Os jogos ficam em ``games/``. O fallback para a raiz mantém o projeto
+# funcionando antes de rodar o script de organização.
+GAMES_DIR = BASE_DIR / "games"
+IMAGES_DIR = BASE_DIR / "images"
+SOUNDS_DIR = BASE_DIR / "sounds"
 IS_WINDOWS = os.name == "nt"
 # Evita o banner de boas-vindas do pygame ao checar dependências dos jogos.
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -85,6 +90,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (640, 360), "fps": 30},
         "pasta": "Doom-PyGame",
         "entry": "main.py",
         "comando": "python main.py",
@@ -110,6 +116,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (288, 512), "fps": 60},
         "pasta": "flappy-bird",
         "entry": "main.py",
         "comando": "python main.py",
@@ -135,7 +142,8 @@ GAMES = [
             ("Enter", "confirmar opções"),
         ],
         "stack": ["Python", "Terminal", "colorama"],
-        "deps": ["keyboard", "colorama", "pyfiglet"],
+        "deps": ["colorama"],
+        "perfil": {"res": None, "fps": 0},
         "pasta": "pacman",
         "entry": "main.py",
         "comando": "python main.py",
@@ -159,8 +167,9 @@ GAMES = [
             ("W", "pular"),
             ("R / T", "dois tipos de ataque"),
         ],
-        "stack": ["Python", "Pygame", "OpenCV"],
-        "deps": ["pygame", "cv2", "numpy"],
+        "stack": ["Python", "Pygame"],
+        "deps": ["pygame"],
+        "perfil": {"res": (960, 540), "fps": 30},
         "pasta": "Street_Fighter",
         "entry": "src/main.py",
         "comando": "python src/main.py",
@@ -184,8 +193,9 @@ GAMES = [
             ("Espaço", "pular"),
             ("Shift", "correr"),
         ],
-        "stack": ["Python", "Pygame", "SciPy"],
-        "deps": ["pygame", "scipy"],
+        "stack": ["Python", "Pygame"],
+        "deps": ["pygame"],
+        "perfil": {"res": (640, 480), "fps": 30},
         "pasta": "super-mario-python",
         "entry": "main.py",
         "comando": "python main.py",
@@ -212,6 +222,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame", "Tiled"],
         "deps": ["pygame"],
+        "perfil": {"res": (960, 540), "fps": 30},
         "pasta": "pyzelda-rpg",
         "entry": "code/main.py",
         "comando": "python code/main.py",
@@ -237,6 +248,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (800, 750), "fps": 30},
         "pasta": "tetris-pygame",
         "entry": "Tetris.py",
         "comando": "python Tetris.py",
@@ -266,6 +278,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame", "Exemplo oficial"],
         "deps": ["pygame"],
+        "perfil": {"res": None, "fps": 60},
         "modulo": "pygame.examples.aliens",
         "pasta": "pygame",
         "entry": None,
@@ -293,6 +306,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (660, 800), "fps": 30},
         "pasta": "sudoku",
         "entry": "main.py",
         "comando": "python main.py",
@@ -320,6 +334,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (720, 480), "fps": 60},
         "pasta": "snake-pygame",
         "entry": "Snake Game.py",
         "comando": 'python "Snake Game.py"',
@@ -345,6 +360,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (800, 600), "fps": 30},
         "pasta": "pong",
         "entry": "main.py",
         "comando": "python main.py",
@@ -371,6 +387,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (800, 600), "fps": 30},
         "pasta": "breakout",
         "entry": "main.py",
         "comando": "python main.py",
@@ -397,6 +414,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (520, 640), "fps": 30},
         "pasta": "2048",
         "entry": "main.py",
         "comando": "python main.py",
@@ -423,6 +441,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (800, 600), "fps": 30},
         "pasta": "bomberman",
         "entry": "main.py",
         "comando": "python main.py",
@@ -449,6 +468,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
+        "perfil": {"res": (1200, 700), "fps": 30},
         "pasta": "SPEED-RACER",
         "entry": "Speed Racer.py",
         "comando": 'python "Speed Racer.py"',
@@ -470,7 +490,7 @@ PIP_NAMES = {
     "colorama": "colorama",
 }
 
-APP_VERSION = "1.4"
+APP_VERSION = "1.5"
 PROJECT_URL = "https://github.com/tiagolucasoo/boxConsole"
 PROJECT_URL_TEXT = "github.com/tiagolucasoo/boxConsole"
 PROJECT_CREDIT = (
@@ -748,15 +768,33 @@ def slim_header(section: str) -> list[str]:
 # Estado dos jogos
 # ---------------------------------------------------------------------------
 
+_module_cache: dict[str, bool] = {}
+
+
 def module_available(name: str) -> bool:
+    """Checa uma dependência uma única vez por execução."""
+    cached = _module_cache.get(name)
+    if cached is not None:
+        return cached
     try:
-        return importlib.util.find_spec(name) is not None
+        available = importlib.util.find_spec(name) is not None
     except Exception:
-        return False
+        available = False
+    _module_cache[name] = available
+    return available
+
+
+def clear_module_cache() -> None:
+    _module_cache.clear()
 
 
 def game_dir(game: dict) -> Path:
-    return BASE_DIR / game["pasta"]
+    """Pasta do jogo em ``games/``, com fallback para a raiz antiga."""
+    pasta = game["pasta"]
+    novo = GAMES_DIR / pasta
+    if novo.exists():
+        return novo
+    return BASE_DIR / pasta
 
 
 def game_entry(game: dict) -> Path | None:
@@ -1133,7 +1171,7 @@ def launch_game(game: dict) -> None:
             lines.append(f"  Arquivo de entrada não encontrado:")
             lines.append(f"  {Fore.YELLOW}{entry}{Style.RESET_ALL}")
             lines.append("")
-            lines.append("  Verifique se a pasta do jogo está ao lado do console_ui.py.")
+            lines.append("  Verifique se a pasta do jogo está dentro de games/.")
     elif missing:
         pip_list = " ".join(PIP_NAMES.get(dep, dep) for dep in missing)
         lines.append("  " + f"{Fore.YELLOW}{Style.BRIGHT}DEPENDÊNCIAS PENDENTES{Style.RESET_ALL}")

@@ -15,7 +15,7 @@ import sys
 import pygame
 
 WIDTH, HEIGHT = 800, 600
-FPS = 60
+FPS = 30
 PADDLE_W, PADDLE_H = 120, 16
 BALL_SIZE = 14
 BRICK_ROWS = 6

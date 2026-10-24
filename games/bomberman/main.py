@@ -19,7 +19,7 @@ import sys
 import pygame
 
 WIDTH, HEIGHT = 800, 600
-FPS = 60
+FPS = 30
 COLS, ROWS = 15, 11
 TILE = 48
 BOARD_X = (WIDTH - COLS * TILE) // 2

@@ -6,7 +6,7 @@ O catálogo de jogos continua vindo de ``console_ui.py`` (modo terminal), para
 que os dois menus mostrem exatamente os mesmos jogos.
 
 Capas:
-    Coloque imagens em ``covers/<id>.png`` (ou .jpg, .jpeg, .webp, .bmp).
+    Coloque imagens em ``images/<id>.png`` (ou .jpg, .jpeg, .webp, .bmp).
     Enquanto não houver imagem, o espaço fica em branco, com uma dica discreta
     do caminho do arquivo.
 """
@@ -35,8 +35,15 @@ import game_host
 
 VW, VH = 1280, 720
 FPS = 30
+# Sem eventos, o laço praticamente não redesenha. 5 Hz é suficiente para
+# expirar avisos e detectar joystick sem gastar CPU no H3.
+IDLE_FPS = 5
 COVERS_DIR = Path(catalog.BASE_DIR) / "covers"
-IMAGE_DIRS = (COVERS_DIR, Path(catalog.BASE_DIR) / "imagens")
+IMAGE_DIRS = (
+    Path(catalog.BASE_DIR) / "images",
+    COVERS_DIR,
+    Path(catalog.BASE_DIR) / "imagens",
+)
 
 TEXT = (238, 242, 252)
 MUTED = (150, 159, 180)
@@ -64,7 +71,7 @@ COVER_ALIASES = {
 
 # Efeitos do menu. Os arquivos podem ficar na raiz ou em ``sounds/``.
 SOUND_EXTS = (".mp3", ".ogg", ".wav", ".flac")
-SOUND_DIRS = (Path(catalog.BASE_DIR), Path(catalog.BASE_DIR) / "sounds")
+SOUND_DIRS = (Path(catalog.BASE_DIR) / "sounds", Path(catalog.BASE_DIR))
 SOUND_STEMS = {
     "hover": ("sound-hover", "hover"),
     "select": ("sound-click", "click", "select"),
@@ -101,6 +108,10 @@ ANSI_COLORS = {
 }
 
 _font_cache: dict[tuple[int, bool], pygame.font.Font] = {}
+_text_cache: dict[tuple[str, int, tuple, bool], pygame.Surface] = {}
+_wrap_cache: dict[tuple[str, int, int], list[str]] = {}
+_ellipsis_cache: dict[tuple[str, int, int], str] = {}
+_CACHE_LIMIT = 512
 
 
 def get_font(size: int, bold: bool = False) -> pygame.font.Font:
@@ -112,15 +123,32 @@ def get_font(size: int, bold: bool = False) -> pygame.font.Font:
     return _font_cache[key]
 
 
+def clear_text_caches() -> None:
+    _text_cache.clear()
+    _wrap_cache.clear()
+    _ellipsis_cache.clear()
+
+
 def draw_text(surface, text, size, color, pos, anchor="topleft", bold=False):
-    image = get_font(size, bold).render(str(text), True, color)
+    """Desenha texto reaproveitando a superfície renderizada."""
+    key = (str(text), size, tuple(color), bool(bold))
+    image = _text_cache.get(key)
+    if image is None:
+        image = get_font(size, bold).render(str(text), True, color)
+        if len(_text_cache) >= _CACHE_LIMIT:
+            _text_cache.clear()
+        _text_cache[key] = image
     rect = image.get_rect(**{anchor: pos})
     surface.blit(image, rect)
     return rect
 
 
 def wrap_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
-    words = text.split()
+    key = (str(text), id(font), max_width)
+    cached = _wrap_cache.get(key)
+    if cached is not None:
+        return cached
+    words = str(text).split()
     lines: list[str] = []
     current = ""
     for word in words:
@@ -132,17 +160,30 @@ def wrap_text(text: str, font: pygame.font.Font, max_width: int) -> list[str]:
             current = word
     if current:
         lines.append(current)
-    return lines or [""]
+    result = lines or [""]
+    if len(_wrap_cache) >= _CACHE_LIMIT:
+        _wrap_cache.clear()
+    _wrap_cache[key] = result
+    return result
 
 
 def ellipsize(text: str, font: pygame.font.Font, max_width: int) -> str:
-    text = str(text)
-    if font.size(text)[0] <= max_width:
-        return text
-    ellipsis = "…"
-    while text and font.size(text + ellipsis)[0] > max_width:
-        text = text[:-1]
-    return text + ellipsis
+    key = (str(text), id(font), max_width)
+    cached = _ellipsis_cache.get(key)
+    if cached is not None:
+        return cached
+    value = str(text)
+    if font.size(value)[0] <= max_width:
+        result = value
+    else:
+        ellipsis = "…"
+        while value and font.size(value + ellipsis)[0] > max_width:
+            value = value[:-1]
+        result = value + ellipsis
+    if len(_ellipsis_cache) >= _CACHE_LIMIT:
+        _ellipsis_cache.clear()
+    _ellipsis_cache[key] = result
+    return result
 
 
 def mix(a, b, t: float):
@@ -204,6 +245,15 @@ class Launcher:
         self.details_focus = 0
         self.details_message = ""
         self.running = True
+        # Só redesenha quando algo muda (tecla, mouse, joystick, aviso).
+        self.dirty = True
+        self._menu_cache: pygame.Surface | None = None
+        self._menu_cache_key: tuple | None = None
+        self._status_version = 0
+        self._scaled_canvas: pygame.Surface | None = None
+        self._scaled_canvas_size = (0, 0)
+        self._game_scaled: pygame.Surface | None = None
+        self._game_scaled_size = (0, 0)
 
         self.toast = ""
         self.toast_until = 0.0
@@ -255,12 +305,21 @@ class Launcher:
         pygame.mouse.set_visible(True)
         self._real_flip = pygame.display.flip
         _font_cache.clear()
+        clear_text_caches()
         self.canvas = pygame.Surface((VW, VH)).convert()
         self.bg = self.build_background()
         self.cover_cache.clear()
         self._dim = None
         self._game_chrome = None
         self._game_chrome_key = None
+        self._menu_cache = None
+        self._menu_cache_key = None
+        self._scaled_canvas = None
+        self._scaled_canvas_size = (0, 0)
+        self._game_scaled = None
+        self._game_scaled_size = (0, 0)
+        self.dirty = True
+        self.preload_covers()
 
     def build_background(self) -> pygame.Surface:
         surface = pygame.Surface((VW, VH)).convert()
@@ -427,7 +486,16 @@ class Launcher:
         else:
             self.screen.fill((0, 0, 0))
             # Nearest neighbor é muito mais barato que smoothscale no ARM.
-            scaled = pygame.transform.scale(self.canvas, (ow, oh))
+            # Reaproveita a superfície de destino para não alocar por frame.
+            if self._scaled_canvas_size != (ow, oh) or self._scaled_canvas is None:
+                self._scaled_canvas = pygame.Surface((ow, oh)).convert()
+                self._scaled_canvas_size = (ow, oh)
+            try:
+                pygame.transform.scale(self.canvas, (ow, oh), self._scaled_canvas)
+                scaled = self._scaled_canvas
+            except TypeError:
+                scaled = pygame.transform.scale(self.canvas, (ow, oh))
+                self._scaled_canvas = scaled
             self.screen.blit(scaled, (ox, oy))
         self._real_flip()
 
@@ -454,6 +522,14 @@ class Launcher:
                 ):
                     return path
         return None
+
+    def preload_covers(self) -> None:
+        """Carrega as capas grandes uma vez, fora do laço de desenho."""
+        for game in catalog.GAMES:
+            try:
+                self.get_cover(game["id"], (520, 292))
+            except Exception:
+                pass
 
     def get_cover(self, game_id: str, size: tuple[int, int]) -> pygame.Surface | None:
         size = (max(1, int(size[0])), max(1, int(size[1])))
@@ -496,7 +572,7 @@ class Launcher:
             if big:
                 draw_text(
                     self.canvas,
-                    f"covers/{game['id']}.png",
+                    f"images/{game['id']}.png",
                     14,
                     (62, 70, 92),
                     (rect.centerx, rect.bottom - 18),
@@ -560,7 +636,7 @@ class Launcher:
             )
             draw_text(
                 surface,
-                "PYGAME EDITION  ·  v1.4",
+                "PYGAME EDITION  ·  v1.5",
                 14,
                 FAINT,
                 (VW - 64, 66),
@@ -646,8 +722,16 @@ class Launcher:
             scaled = game_surface
         else:
             # Nearest neighbor: essencial para jogos pequenos rodando em
-            # ARMv7. A diferença visual é mínima e o ganho é enorme.
-            scaled = pygame.transform.scale(game_surface, (gw, gh))
+            # ARMv7. Reaproveita a superfície de destino a cada frame.
+            if self._game_scaled_size != (gw, gh) or self._game_scaled is None:
+                self._game_scaled = pygame.Surface((gw, gh)).convert()
+                self._game_scaled_size = (gw, gh)
+            try:
+                pygame.transform.scale(game_surface, (gw, gh), self._game_scaled)
+                scaled = self._game_scaled
+            except TypeError:
+                scaled = pygame.transform.scale(game_surface, (gw, gh))
+                self._game_scaled = scaled
         surface.blit(scaled, game_rect.topleft)
         pygame.draw.rect(surface, accent, game_rect, 2, border_radius=8)
         host.game_rect = game_rect
@@ -725,6 +809,18 @@ class Launcher:
 
     def draw_menu(self, show_hints: bool = True, show_toast: bool = True) -> None:
         assert self.canvas is not None and self.bg is not None
+        key = (self.selected, bool(show_hints), self._status_version)
+        if self._menu_cache is not None and self._menu_cache_key == key:
+            self.canvas.blit(self._menu_cache, (0, 0))
+        else:
+            self._draw_menu_uncached(show_hints)
+            self._menu_cache = self.canvas.copy()
+            self._menu_cache_key = key
+        if show_toast:
+            self.draw_toast()
+
+    def _draw_menu_uncached(self, show_hints: bool) -> None:
+        assert self.canvas is not None and self.bg is not None
         surface = self.canvas
         surface.blit(self.bg, (0, 0))
         self.draw_header()
@@ -739,7 +835,7 @@ class Launcher:
 
         x = 616
         top = 148
-        genre_rect = draw_pill(surface, game["genero"], x, top, accent, size=15)
+        draw_pill(surface, game["genero"], x, top, accent, size=15)
         draw_pill(surface, status_text, VW - 64, top, status_color, size=15, anchor_left=False)
 
         title_font = get_font(44, True)
@@ -774,8 +870,6 @@ class Launcher:
                     ("ESC", "sair"),
                 ]
             )
-        if show_toast:
-            self.draw_toast()
 
     def draw_carousel(self) -> None:
         assert self.canvas is not None
@@ -1204,7 +1298,10 @@ class Launcher:
         self.details_message = catalog.open_repository(game)
 
     def refresh_status(self) -> None:
+        catalog.clear_module_cache()
         self.status = {game["id"]: status_of(game) for game in catalog.GAMES}
+        self._status_version += 1
+        self.dirty = True
 
     def launch_game(self, game: dict) -> None:
         self.stop_menu_sounds()
@@ -1282,6 +1379,9 @@ class Launcher:
         self.details_message = ""
         self.toast = message or f"{game['nome']} encerrado."
         self.toast_until = time.monotonic() + 3.5
+        self._menu_cache = None
+        self._menu_cache_key = None
+        self.dirty = True
 
     def launch_external(self, game: dict) -> None:
         """Modo reserva: abre o jogo em uma janela/console próprio."""
@@ -1330,9 +1430,18 @@ class Launcher:
         self.mode = "menu"
         self.toast = message
         self.toast_until = time.monotonic() + 3.5
+        self._menu_cache = None
+        self._menu_cache_key = None
+        self.dirty = True
 
-    def handle_events(self) -> None:
-        for event in pygame.event.get():
+    def handle_events(self, first_event=None) -> None:
+        events = []
+        if first_event is not None and first_event.type != pygame.NOEVENT:
+            events.append(first_event)
+        events.extend(pygame.event.get())
+        if events:
+            self.dirty = True
+        for event in events:
             if event.type == pygame.QUIT:
                 self.request_exit()
                 return
@@ -1491,11 +1600,23 @@ class Launcher:
 
     def run(self) -> None:
         while self.running:
-            self.handle_events()
+            if self.dirty:
+                self.handle_events()
+            else:
+                # Sem redesenho pendente, dorme até um evento chegar. Assim o
+                # menu fica em ~0% de CPU sem atrasar as teclas do controle.
+                first = pygame.event.wait(1.0 / IDLE_FPS)
+                self.handle_events(first)
+
             if not self.running:
                 break
-            self.draw()
-            self.clock.tick(FPS)
+            if self.toast and time.monotonic() >= self.toast_until:
+                self.toast = ""
+                self.dirty = True
+            if self.dirty:
+                self.draw()
+                self.dirty = False
+                self.clock.tick(FPS)
 
 
 def main(fullscreen: bool = True) -> None:

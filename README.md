@@ -8,6 +8,29 @@ Ao iniciar, o BoxConsole tenta abrir o menu Pygame em tela cheia. Se o Pygame
 não estiver instalado ou a tela falhar, ele abre automaticamente o menu de
 terminal — nada deixa de funcionar.
 
+## Estrutura do projeto
+
+```text
+games/      todos os jogos
+sounds/     os três efeitos do menu
+images/     capas e imagens
+```
+
+O código aceita os caminhos antigos como fallback, mas a organização nova é a
+recomendada.
+
+## Otimizações para o H3 / ARMv7
+
+- O menu só redesenha quando há evento; parado, fica praticamente em 0% de CPU.
+- Textos, capas, moldura do jogo e frames do menu são cacheados.
+- Escalas de tela reaproveitam a superfície de destino (sem alocar por frame).
+- Jogos pesados ganharam perfis próprios: Doom em 640×360/240 raios, Zelda em
+  960×540 a 30 FPS, Street Fighter em 960×540 a 30 FPS sem blur por frame.
+- `scipy`, `opencv-python`, `numpy`, `keyboard` e `pyfiglet` não são mais
+  necessários.
+- Recordes ficam em `~/.local/share/boxconsole/`, fora do repositório.
+- O `boxconsole.sh` usa o Pygame do sistema e cai no terminal se ele faltar.
+
 ## Iniciar
 
 Windows:
@@ -25,22 +48,20 @@ python main.py
 Linux / TV box:
 
 ```bash
-sudo apt install python3-venv python3-pip
+sudo apt install python3-colorama python3-pygame
 bash boxconsole.sh
 ```
 
-O `boxconsole.sh` cria um ambiente Python isolado e instala as dependências
-nele. Isso evita o erro **PEP 668** (`externally-managed-environment`) ao usar
-`pip` no Python do sistema. O ambiente fica em
-`~/.local/share/boxconsole/venv`; para escolher outro local, use
-`BOXCONSOLE_VENV=/caminho/venv`. O script tenta primeiro o Python do sistema
-(`/usr/bin/python3`), que é o que recebe o `python3-pygame` instalado pelo
-`apt`.
+O `boxconsole.sh` **não instala Pygame à força** e não cria mais um ambiente
+virtual cheio de pacotes pesados. Ele usa o Python do sistema (ou
+`BOXCONSOLE_PYTHON`/`VIRTUAL_ENV`, se definidos) e abre o menu gráfico quando o
+Pygame existe; sem Pygame, cai automaticamente no menu de terminal. No Debian e
+no Ubuntu ARM, `python3-pygame` é bem mais leve e confiável que compilar o
+Pygame pelo `pip`.
 
-Se preferir rodar direto, instale as dependências pelo sistema:
+Também dá para rodar direto:
 
 ```bash
-sudo apt install python3-colorama python3-pygame
 python3 main.py
 ```
 
@@ -66,39 +87,33 @@ O menu, as setas e o OK funcionam normalmente. A maximização automática do
 terminal é exclusiva do Windows, então no Linux/TV box use `F11` no terminal
 (ou o `F11` do próprio menu Pygame).
 
-## Dependências dos jogos no Linux
+## Dependências no Linux
 
-O menu principal precisa de `pygame`; o menu de terminal (reserva) precisa
-apenas de `colorama`. Cada jogo tem suas próprias dependências, que podem ser
-instaladas conforme o uso:
+O BoxConsole precisa apenas de **Pygame** (menu gráfico e jogos) e **colorama**
+(menu de terminal). As dependências pesadas antigas — `numpy`, `scipy`,
+`opencv-python`, `keyboard` e `pyfiglet` — foram removidas do projeto.
 
 ```bash
-# Pygame, NumPy, SciPy, OpenCV e Pyfiglet (menu + jogos)
-sudo apt install python3-pygame python3-colorama python3-numpy python3-scipy python3-opencv python3-pyfiglet
-
-# O Pac-Man tambem usa keyboard; no Debian nao existe python3-keyboard.
-# Instale no ambiente isolado do BoxConsole:
-~/.local/share/boxconsole/venv/bin/python -m pip install keyboard
+sudo apt install python3-colorama python3-pygame
 ```
 
-Em Windows e em outras plataformas, o `requirements.txt` reúne todas as
-bibliotecas Python usadas pelos 15 jogos:
+No Windows:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-No TV box ARMv7, prefira os pacotes `apt` acima, porque `pygame`, `numpy`,
-`scipy` e `opencv-python` não têm wheels para essa arquitetura.
-
 Observações:
 
-- O **Pac-Man** usa a biblioteca `keyboard`, que no Linux costuma precisar de
-  `sudo` (ou de uma regra de udev) para ler o teclado.
-- O **Street Fighter** usa `opencv-python`; se o Linux reclamar de `libGL`,
-  instale as bibliotecas gráficas do sistema ou rode em um ambiente com X11.
-- Os caminhos das fontes do **Tetris** foram ajustados para Linux
-  (`arcade.TTF`), então ele roda independente da pasta de onde for chamado.
+- O **Pac-Man** agora lê o teclado pelo próprio terminal (termios/select no
+  Linux e msvcrt no Windows), sem `keyboard` e sem `sudo`.
+- O **Street Fighter** não usa mais OpenCV/NumPy: o fundo desfocado é calculado
+  uma única vez com o próprio Pygame.
+- O **Super Mario** não usa mais SciPy: o desfoque do menu de pausa usa
+  `pygame.transform.smoothscale`.
+- Os recordes do **Tetris** e do **Speed Racer** ficam em
+  `~/.local/share/boxconsole/` (Linux) ou `%APPDATA%\boxconsole` (Windows), fora
+  do repositório.
 
 ## Controles
 
@@ -137,14 +152,14 @@ voltar envia `ESC` ou `Backspace`.
 O menu Pygame usa três efeitos opcionais:
 
 ```text
-sound-hover.mp3   # ao passar entre os jogos
-sound-click.mp3   # ao abrir a ficha de um jogo
-sound-return.mp3  # ao encerrar o programa geral
+sounds/sound-hover.mp3   # ao passar entre os jogos
+sounds/sound-click.mp3   # ao abrir a ficha de um jogo
+sounds/sound-return.mp3  # ao encerrar o programa geral
 ```
 
 Também são aceitos `.ogg`, `.wav` e `.flac`, com os nomes `hover.*`,
-`click.*` (ou `select.*`) e `return.*`, na raiz do projeto ou em uma pasta
-`sounds/`.
+`click.*` (ou `select.*`) e `return.*`, em `sounds/` (a raiz antiga ainda é
+aceita como fallback).
 
 - O som de hover toca quando a seleção muda: setas, roda do mouse, movimento
   do mouse sobre as capas, controle ou gamepad.
@@ -161,13 +176,12 @@ Também são aceitos `.ogg`, `.wav` e `.flac`, com os nomes `hover.*`,
 
 ## Capas do menu Pygame
 
-As capas podem ficar em `covers/` (prioridade) ou em `imagens/`, usando o `id`
-do jogo:
+As capas ficam em `images/`, usando o `id` do jogo:
 
 ```text
-covers/doom.png
-covers/mario.png
-covers/bomberman.png
+images/doom.png
+images/mario.png
+images/bomberman.png
 ...
 ```
 
@@ -179,27 +193,27 @@ covers/bomberman.png
   discreta do caminho do arquivo.
 - A imagem é ajustada **inteira**, sem cortes; proporções diferentes de 16:9
   ganham faixas discretas na cor do painel.
-- Veja a lista completa em `covers/README.md`.
+- Veja a lista completa em `images/README.md`.
 
 ## Jogos incluídos
 
 | # | Jogo | Entrada | Dependências |
 |---|------|---------|--------------|
-| 1 | Doom in PyGame | `Doom-PyGame/main.py` | pygame |
-| 2 | Flappy Bird | `flappy-bird/main.py` | pygame |
-| 3 | Pac-Man | `pacman/main.py` | keyboard, colorama, pyfiglet |
-| 4 | Street Fighter | `Street_Fighter/src/main.py` | pygame, opencv-python, numpy |
-| 5 | Super Mario | `super-mario-python/main.py` | pygame, scipy |
-| 6 | PyZelda RPG | `pyzelda-rpg/code/main.py` | pygame |
-| 7 | Tetris | `tetris-pygame/Tetris.py` | pygame |
+| 1 | Doom in PyGame | `games/Doom-PyGame/main.py` | pygame |
+| 2 | Flappy Bird | `games/flappy-bird/main.py` | pygame |
+| 3 | Pac-Man | `games/pacman/main.py` | colorama |
+| 4 | Street Fighter | `games/Street_Fighter/src/main.py` | pygame |
+| 5 | Super Mario | `games/super-mario-python/main.py` | pygame |
+| 6 | PyZelda RPG | `games/pyzelda-rpg/code/main.py` | pygame |
+| 7 | Tetris | `games/tetris-pygame/Tetris.py` | pygame |
 | 8 | Aliens | `pygame.examples.aliens` | pygame |
-| 9 | Sudoku | `sudoku/main.py` | pygame |
-| 10 | Snake Eater | `snake-pygame/Snake Game.py` | pygame |
-| 11 | Pong | `pong/main.py` | pygame |
-| 12 | Breakout | `breakout/main.py` | pygame |
-| 13 | 2048 | `2048/main.py` | pygame |
-| 14 | Bomberman | `bomberman/main.py` | pygame |
-| 15 | Speed Racer | `SPEED-RACER/Speed Racer.py` | pygame |
+| 9 | Sudoku | `games/sudoku/main.py` | pygame |
+| 10 | Snake Eater | `games/snake-pygame/Snake Game.py` | pygame |
+| 11 | Pong | `games/pong/main.py` | pygame |
+| 12 | Breakout | `games/breakout/main.py` | pygame |
+| 13 | 2048 | `games/2048/main.py` | pygame |
+| 14 | Bomberman | `games/bomberman/main.py` | pygame |
+| 15 | Speed Racer | `games/SPEED-RACER/Speed Racer.py` | pygame |
 
 O jogo 8 já vem embutido no próprio Pygame (exemplo oficial), então não precisa
 de pasta: o BoxConsole roda `python -m pygame.examples.aliens`.

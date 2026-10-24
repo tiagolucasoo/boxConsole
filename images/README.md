@@ -1,13 +1,10 @@
-# Capas dos jogos
+# Imagens e capas dos jogos
 
-Coloque aqui uma imagem para cada jogo do BoxConsole. O menu também aceita
-imagens na pasta `imagens/` (na raiz do projeto); `covers/` tem prioridade se
-existirem arquivos com o mesmo nome. Enquanto a imagem não existir, o espaço
-fica em branco e mostra apenas uma dica discreta do caminho.
+Coloque aqui uma imagem para cada jogo do BoxConsole. O menu usa o `id` de
+cada jogo (veja a lista `GAMES` em `../console_ui.py`). Enquanto a imagem não
+existir, o espaço fica em branco e mostra apenas uma dica discreta do caminho.
 
 ## Nomes dos arquivos
-
-Use o `id` de cada jogo (veja a lista `GAMES` em `../console_ui.py`):
 
 | Jogo | Arquivo sugerido |
 |------|------------------|
