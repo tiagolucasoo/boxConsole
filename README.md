@@ -152,14 +152,16 @@ voltar envia `ESC` ou `Backspace`.
 O menu Pygame usa três efeitos opcionais:
 
 ```text
-sounds/sound-hover.mp3   # ao passar entre os jogos
-sounds/sound-click.mp3   # ao abrir a ficha de um jogo
-sounds/sound-return.mp3  # ao encerrar o programa geral
+sounds/sound-hover.wav   # ao passar entre os jogos
+sounds/sound-click.wav   # ao abrir a ficha de um jogo
+sounds/sound-return.wav  # ao encerrar o programa geral
 ```
 
-Também são aceitos `.ogg`, `.wav` e `.flac`, com os nomes `hover.*`,
-`click.*` (ou `select.*`) e `return.*`, em `sounds/` (a raiz antiga ainda é
-aceita como fallback).
+Os `.wav` são mono em 22050 Hz e têm prioridade porque o SDL_mixer do ARMv7
+abre esse formato sem depender de codecs extras. Os `.mp3` originais continuam
+em `sounds/` como fallback. Também são aceitos `.ogg` e `.flac`, com os nomes
+`hover.*`, `click.*` (ou `select.*`) e `return.*`, em `sounds/` (a raiz antiga
+ainda é aceita como fallback).
 
 - O som de hover toca quando a seleção muda: setas, roda do mouse, movimento
   do mouse sobre as capas, controle ou gamepad.

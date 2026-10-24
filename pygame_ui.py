@@ -70,7 +70,9 @@ COVER_ALIASES = {
 }
 
 # Efeitos do menu. Os arquivos podem ficar na raiz ou em ``sounds/``.
-SOUND_EXTS = (".mp3", ".ogg", ".wav", ".flac")
+# WAV vem primeiro: no ARMv7/TV box o SDL_mixer costuma abrir WAV sem
+# depender de codecs extras. MP3/OGG continuam aceitos como fallback.
+SOUND_EXTS = (".wav", ".ogg", ".mp3", ".flac")
 SOUND_DIRS = (Path(catalog.BASE_DIR) / "sounds", Path(catalog.BASE_DIR))
 SOUND_STEMS = {
     "hover": ("sound-hover", "hover"),
@@ -82,15 +84,23 @@ SELECT_VOLUME = 0.55
 RETURN_VOLUME = 0.7
 
 
-def find_menu_sound(kind: str) -> Path | None:
-    """Localiza um efeito do menu, aceitando variações de nome/formato."""
+def iter_menu_sounds(kind: str):
+    """Lista os candidatos na ordem de preferência, sem repetir caminhos."""
+    seen: set[Path] = set()
     for folder in SOUND_DIRS:
         for stem in SOUND_STEMS[kind]:
             for ext in SOUND_EXTS:
                 candidate = folder / f"{stem}{ext}"
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
                 if candidate.is_file():
-                    return candidate
-    return None
+                    yield candidate
+
+
+def find_menu_sound(kind: str) -> Path | None:
+    """Localiza um efeito do menu, aceitando variações de nome/formato."""
+    return next(iter_menu_sounds(kind), None)
 
 ANSI_COLORS = {
     catalog.Fore.RED: (255, 96, 96),
@@ -373,27 +383,47 @@ class Launcher:
         self._select_channel = None
         self._return_channel = None
         self._quitting = False
+        self.audio_error = ""
+
+        # Alguns aparelhos só aceitam 22050 Hz mono ou precisam de buffer
+        # maior. Tenta as combinações mais comuns antes de desistir.
+        if not pygame.mixer.get_init():
+            for args in (
+                (44100, -16, 2, 512),
+                (44100, -16, 2, 1024),
+                (22050, -16, 1, 512),
+            ):
+                try:
+                    pygame.mixer.init(*args)
+                    if pygame.mixer.get_init():
+                        break
+                except Exception as exc:
+                    self.audio_error = str(exc)
+
+        if not pygame.mixer.get_init():
+            return
 
         try:
-            if not pygame.mixer.get_init():
-                pygame.mixer.init()
+            pygame.mixer.set_num_channels(8)
         except Exception:
-            return
+            pass
 
         for kind, attribute, volume in (
             ("hover", "hover_sound", HOVER_VOLUME),
             ("select", "select_sound", SELECT_VOLUME),
             ("return", "return_sound", RETURN_VOLUME),
         ):
-            path = find_menu_sound(kind)
-            if not path:
-                continue
-            try:
-                sound = pygame.mixer.Sound(str(path))
-                sound.set_volume(volume)
-                setattr(self, attribute, sound)
-            except Exception:
-                setattr(self, attribute, None)
+            # Tenta WAV primeiro, depois OGG/MP3. Se um formato falhar no
+            # SDL_mixer do TV box, o próximo candidato ainda é tentado.
+            for path in iter_menu_sounds(kind):
+                try:
+                    sound = pygame.mixer.Sound(str(path))
+                    sound.set_volume(volume)
+                    setattr(self, attribute, sound)
+                    break
+                except Exception as exc:
+                    self.audio_error = f"{path.name}: {exc}"
+                    continue
 
     def stop_menu_sounds(self) -> None:
         for channel_name in ("_hover_channel", "_select_channel", "_return_channel"):
@@ -1173,6 +1203,17 @@ class Launcher:
             f"{platform.system()} {platform.release()}  ·  {platform.machine()}",
             f"BoxConsole em {catalog.BASE_DIR}",
         ]
+        mixer_info = pygame.mixer.get_init()
+        if mixer_info:
+            loaded_effects = sum(
+                1 for sound in (self.hover_sound, self.select_sound, self.return_sound) if sound
+            )
+            env_lines.append(
+                f"Áudio: mixer {mixer_info[0]} Hz, {mixer_info[2]} canal(is)"
+                f"  ·  efeitos {loaded_effects}/3"
+            )
+        else:
+            env_lines.append("Áudio: mixer indisponível (menu segue em silêncio)")
         y = 158
         for line in env_lines:
             draw_text(surface, ellipsize(line, get_font(18), 1050), 18, MUTED, (112, y))
@@ -1605,7 +1646,7 @@ class Launcher:
             else:
                 # Sem redesenho pendente, dorme até um evento chegar. Assim o
                 # menu fica em ~0% de CPU sem atrasar as teclas do controle.
-                first = pygame.event.wait(1.0 / IDLE_FPS)
+                first = pygame.event.wait(int(1000 / IDLE_FPS))
                 self.handle_events(first)
 
             if not self.running:
