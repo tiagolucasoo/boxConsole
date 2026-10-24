@@ -1,0 +1,22 @@
+1) Adicionar Nome, Crônometro, Dificuldade e Pontuação
+    # Funções em utils.py e em main.py e utilizando no game.py
+
+2) Adicionar comandos para menu com pausar, continuar, resetar ou mudar dificuldade(resetar tmb)
+
+3) Adicionar transição de main para game
+
+4) Adicionar Comportamentos para cada fantasmas no strategy:
+    def fantasma_blinky():
+        #	- Blinky (Vermelho): Persegue o Pac-Man diretamente
+    def fantasma_pinky():
+        #	- Pinky (Rosa): Se posiciona na frente do Pac-Man
+    def fantasma_inky():
+        #	- Inky (Ciano): Usa a posição do Blinky para cercar o Pac-Man
+    def fantasma_clyde():
+        #	- Clyde (Laranja): Persegue o Pac-Man sem chegar muito próximo
+
+5) Adicionar Colisão com fantasmas e som de colisão com pygame
+
+6) Adicionar Vitoria e GameOver
+
+MAP: OK
