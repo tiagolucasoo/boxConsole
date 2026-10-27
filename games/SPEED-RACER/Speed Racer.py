@@ -25,43 +25,72 @@ if not os.path.exists(HIGHSCORE_PATH) and os.path.exists(_legacy_highscore):
 pygame.init()
 pygame.mixer.init()
 
-gameWindow = pygame.display.set_mode((1200,700))
+# O jogo foi escrito para 1200x700. Renderizar nessa resolução e deixar o
+# host reduzir custa caro no H3. Aqui tudo é desenhado a 75% e o host só
+# amplia 900x525 para a área de 960x540.
+SCALE = 0.75
+
+
+def scaled_size(width, height):
+    return (max(1, int(width * SCALE)), max(1, int(height * SCALE)))
+
+
+class ScaledWindow:
+    """Superfície 900x525 que aceita coordenadas do projeto original."""
+
+    def __init__(self, surface):
+        self.surface = surface
+
+    def blit(self, source, dest, *args, **kwargs):
+        return self.surface.blit(
+            source,
+            (int(dest[0] * SCALE), int(dest[1] * SCALE)),
+            *args,
+            **kwargs,
+        )
+
+    def fill(self, color):
+        return self.surface.fill(color)
+
+
+_real_window = pygame.display.set_mode(scaled_size(1200, 700))
+gameWindow = ScaledWindow(_real_window)
 pygame.display.set_caption("Speed Racer")
 
 clock = pygame.time.Clock()
 fps = 30
 
-font1 = pygame.font.SysFont("Franklin Gothic Demi Cond",50)
+font1 = pygame.font.SysFont("Franklin Gothic Demi Cond", max(16, int(50 * SCALE)))
 
 car = pygame.image.load("data/images/Car.png")
-car = pygame.transform.scale(car,(150,150)).convert_alpha()
+car = pygame.transform.scale(car, scaled_size(150, 150)).convert_alpha()
 
 road = pygame.image.load("data/images/Road.png")
-road = pygame.transform.scale(road,(400,700)).convert_alpha()
+road = pygame.transform.scale(road, scaled_size(400, 700)).convert_alpha()
 
 sand = pygame.image.load("data/images/Sand.jpg")
-sand = pygame.transform.scale(sand,(150,700)).convert_alpha()
+sand = pygame.transform.scale(sand, scaled_size(150, 700)).convert_alpha()
 
 leftDisp = pygame.image.load("data/images/LeftDisplay.png")
-leftDisp = pygame.transform.scale(leftDisp,(250,700)).convert_alpha()
+leftDisp = pygame.transform.scale(leftDisp, scaled_size(250, 700)).convert_alpha()
 
 rightDisp = pygame.image.load("data/images/RightDisplay.png")
-rightDisp = pygame.transform.scale(rightDisp,(250,700)).convert_alpha()
+rightDisp = pygame.transform.scale(rightDisp, scaled_size(250, 700)).convert_alpha()
 
 tree = pygame.image.load("data/images/Tree.png")
-tree = pygame.transform.scale(tree,(185,168)).convert_alpha()
+tree = pygame.transform.scale(tree, scaled_size(185, 168)).convert_alpha()
 treeLXY = [[290,0],[290,152.5],[290,305],[290,457.5],[290,610]]
 treeRXY = [[760,0],[760,152.5],[760,305],[760,457.5],[760,610]]
 
 strip = pygame.image.load("data/images/Strip.png")
-strip = pygame.transform.scale(strip,(25,90)).convert_alpha()
+strip = pygame.transform.scale(strip, scaled_size(25, 90)).convert_alpha()
 stripXY = [[593,0],[593,152.5],[593,305],[593,457.5],[593,610]]
 
 explosion = pygame.image.load("data/images/Explosion.png")
-explosion = pygame.transform.scale(explosion,(290,164)).convert_alpha()
+explosion = pygame.transform.scale(explosion, scaled_size(290, 164)).convert_alpha()
 
 fuel = pygame.image.load("data/images/Fuel.png")
-fuel = pygame.transform.scale(fuel,(98,104)).convert_alpha()
+fuel = pygame.transform.scale(fuel, scaled_size(98, 104)).convert_alpha()
 
 comingCars,goingCars = [],[]
 speedCC = [13,14,15,14,14,15,13,14,15]
@@ -69,10 +98,10 @@ speedGC = [8,6,7,5,8,7,8,6,8]
 
 for i in range(1,10):
     CCi = pygame.image.load("data/images/Coming Cars/"+"CC"+str(i)+".png")
-    CCi = pygame.transform.scale(CCi, (75, 158)).convert_alpha()
+    CCi = pygame.transform.scale(CCi, scaled_size(75, 158)).convert_alpha()
     comingCars.append([CCi,speedCC[i-1]])
     GCi = pygame.image.load("data/images/Going Cars/"+"GC"+str(i)+".png").convert_alpha()
-    GCi = pygame.transform.scale(GCi,(75,158)).convert_alpha()
+    GCi = pygame.transform.scale(GCi, scaled_size(75, 158)).convert_alpha()
     goingCars.append([GCi,speedGC[i-1]])
 
 def distance(carX,obstX,carY,obstY,isFuel = False):
@@ -92,8 +121,17 @@ def distance(carX,obstX,carY,obstY,isFuel = False):
 
         return abs(carX - obstX) < 70 and abs(carY - obstY) < 80
 
+_text_cache = {}
+
+
 def textOnScreen(text,color,x,y,font):
-    screenText = font.render(text,True,color)
+    key = (id(font), str(text), tuple(color))
+    screenText = _text_cache.get(key)
+    if screenText is None:
+        screenText = font.render(str(text), True, color)
+        if len(_text_cache) > 128:
+            _text_cache.clear()
+        _text_cache[key] = screenText
     gameWindow.blit(screenText,[x,y])
 
 def slowDown(carX,carY,dist,highscore):
@@ -152,6 +190,8 @@ def slowDown(carX,carY,dist,highscore):
 
         gameWindow.blit(car,(carX,carY))
         pygame.display.update()
+        # Sem isso a tela de fim de jogo rodava em 100% de CPU no H3.
+        clock.tick(fps)
 
 def gameLoop():
 
@@ -209,7 +249,7 @@ def gameLoop():
 
             exitScreen = False
             go = pygame.image.load("data/images/GameOver.png")
-            go = pygame.transform.scale(go,(1239,752)).convert_alpha()
+            go = pygame.transform.scale(go, scaled_size(1239, 752)).convert_alpha()
 
             with open(HIGHSCORE_PATH, "w") as f:
                 f.write(str(highscore))
@@ -386,7 +426,7 @@ def homeScreen():
 
 
     background = pygame.image.load("data/images/Background.png")
-    background = pygame.transform.scale(background,(1213,760)).convert_alpha()
+    background = pygame.transform.scale(background, scaled_size(1213, 760)).convert_alpha()
 
     exitScreen = False
     while not exitScreen:

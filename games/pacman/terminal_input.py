@@ -33,11 +33,20 @@ class TerminalInput:
             self._old = termios.tcgetattr(fd)
             tty.setcbreak(fd)
             self._enabled = True
+            # Esconde o cursor durante o jogo; o menu volta a mostrá-lo.
+            sys.stdout.write("\x1b[?25l")
+            sys.stdout.flush()
         except Exception:
             self._old = None
             self._enabled = False
 
     def restore(self) -> None:
+        try:
+            if sys.stdout.isatty():
+                sys.stdout.write("\x1b[?25h")
+                sys.stdout.flush()
+        except Exception:
+            pass
         if self._old is None:
             self._enabled = False
             return
@@ -76,7 +85,13 @@ class TerminalInput:
             if ch in ("\x00", "\xe0"):
                 code = msvcrt.getwch()
                 self._push(
-                    {"H": "up", "P": "down", "K": "left", "M": "right"}.get(code, "")
+                    {
+                        "H": "up",
+                        "P": "down",
+                        "K": "left",
+                        "M": "right",
+                        "\x86": "f12",
+                    }.get(code, "")
                 )
             elif ch == "\x1b":
                 self._push("esc")
@@ -94,19 +109,25 @@ class TerminalInput:
             while select.select([sys.stdin], [], [], 0)[0]:
                 ch = sys.stdin.read(1)
                 if ch == "\x1b":
-                    # Pode ser só ESC ou uma sequência de seta (ESC [ A/B/C/D).
-                    ready = select.select([sys.stdin], [], [], 0.02)[0]
-                    if not ready:
-                        self._push("esc")
-                        continue
-                    seq = ch + sys.stdin.read(1)
-                    if seq == "\x1b[":
+                    # Pode ser só ESC, uma seta (ESC [ A/B/C/D) ou F12
+                    # (ESC [ 2 4 ~). Lê a sequência inteira antes de decidir.
+                    seq = ch
+                    while len(seq) < 8:
                         ready = select.select([sys.stdin], [], [], 0.02)[0]
-                        if ready:
-                            code = sys.stdin.read(1)
-                            self._push(
-                                {"A": "up", "B": "down", "C": "right", "D": "left"}.get(code, "")
-                            )
+                        if not ready:
+                            break
+                        seq += sys.stdin.read(1)
+                        if seq[-1].isalpha() or seq[-1] == "~":
+                            break
+                    if seq == "\x1b":
+                        self._push("esc")
+                    elif seq in ("\x1b[A", "\x1b[B", "\x1b[C", "\x1b[D"):
+                        self._push(
+                            {"\x1b[A": "up", "\x1b[B": "down",
+                             "\x1b[C": "right", "\x1b[D": "left"}[seq]
+                        )
+                    elif seq == "\x1b[24~":
+                        self._push("f12")
                     continue
                 if ch in ("\r", "\n"):
                     self._push("enter")

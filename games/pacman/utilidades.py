@@ -1,9 +1,19 @@
-from colorama import Fore, Back, Style, init 
+try:
+    from colorama import Fore, Back, Style, init as colorama_init
+except ImportError:
+    class _NoColor:
+        def __getattr__(self, _name: str) -> str:
+            return ""
+
+    Fore = Back = Style = _NoColor()
+    def colorama_init(*_args, **_kwargs) -> None:
+        return None
+
 import os
 import time
 import sys
 
-init(autoreset=True)
+colorama_init(autoreset=True)
 
 uni = '\u1A27'
 dificuldade_mapa = {"1": "facil", "2": "medio", "3": "dificil"}
@@ -84,7 +94,9 @@ def tempo_passado(inicio: float) -> float:
 
 def limpar_tela():
     # ANSI funciona no Linux e no Windows 10/11; evita abrir um processo cls.
-    sys.stdout.write("\x1b[2J\x1b[3J\x1b[H")
+    # Não use \x1b[3J aqui: limpar o scrollback a cada frame é muito lento
+    # no terminal do TV box.
+    sys.stdout.write("\x1b[2J\x1b[H")
     sys.stdout.flush()
 
 def loading(mensagem="Carregando", duracao=2, simbolo=".") -> None:

@@ -2,13 +2,33 @@ import pygame
 import random
 import math
 class Fighter:
-    def __init__(self, player, x, y, flip, data, sprite_sheet, animation_steps, sound):
+    def __init__(
+        self,
+        player,
+        x,
+        y,
+        flip,
+        data,
+        sprite_sheet=None,
+        animation_steps=None,
+        sound=None,
+        animation_list=None,
+        frame_anchor=False,
+        floor_y=None,
+    ):
         self.player = player
         self.size = data[0]
         self.image_scale = data[1]
         self.offset = data[2]
         self.flip = flip
-        self.animation_list = self.load_images(sprite_sheet, animation_steps)
+        self.frame_anchor = frame_anchor
+        self.floor_y = floor_y
+        if animation_list is None:
+            self.animation_list = self.load_images(sprite_sheet, animation_steps)
+        else:
+            # The new Street Fighter sheets are pre-sliced by characters.py.
+            # Reusing those surfaces avoids keeping the raw PNG in memory.
+            self.animation_list = animation_list
         self.action = 0  # 0:idle #1:run #2:jump #3:attack1 #4: attack2 #5:hit #6:death
         self.frame_index = 0
         self.image = self.animation_list[self.action][self.frame_index]
@@ -21,6 +41,9 @@ class Fighter:
         self.attack_type = 0
         self.attack_cooldown = 0
         self.attack_sound = sound
+        # pygame.transform.flip em sprites de 500x500 é caro no ARMv7.
+        # Guarda as versões espelhadas já usadas (poucas por animação).
+        self._flip_cache = {}
         self.hit = False
         self.health = 100
         self.alive = True
@@ -205,10 +228,11 @@ class Fighter:
             dx = -self.rect.left
         if self.rect.right + dx > screen_width:
             dx = screen_width - self.rect.right
-        if self.rect.bottom + dy > screen_height - 110:
+        floor_y = self.floor_y if self.floor_y is not None else screen_height - 110
+        if self.rect.bottom + dy > floor_y:
             self.vel_y = 0
             self.jump = False
-            dy = screen_height - 110 - self.rect.bottom
+            dy = floor_y - self.rect.bottom
 
         # ensure players face each other
         if target.rect.centerx > self.rect.centerx:
@@ -290,5 +314,23 @@ class Fighter:
             self.update_time = pygame.time.get_ticks()
 
     def draw(self, surface):
-        img = pygame.transform.flip(self.image, self.flip, False)
-        surface.blit(img, (self.rect.x - (self.offset[0] * self.image_scale), self.rect.y - (self.offset[1] * self.image_scale)))
+        if self.flip:
+            key = id(self.image)
+            img = self._flip_cache.get(key)
+            if img is None:
+                img = pygame.transform.flip(self.image, True, False)
+                if len(self._flip_cache) >= 16:
+                    self._flip_cache.clear()
+                self._flip_cache[key] = img
+        else:
+            img = self.image
+        if self.frame_anchor:
+            # Custom frames are normalized to a bottom-centre canvas. Anchoring
+            # them to the collision rect keeps the feet on the floor and makes
+            # flipping symmetrical, including wide staff/fireball frames.
+            draw_x = self.rect.centerx - img.get_width() // 2
+            draw_y = self.rect.bottom - img.get_height()
+        else:
+            draw_x = self.rect.x - (self.offset[0] * self.image_scale)
+            draw_y = self.rect.y - (self.offset[1] * self.image_scale)
+        surface.blit(img, (draw_x, draw_y))

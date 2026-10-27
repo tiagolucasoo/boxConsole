@@ -15,7 +15,9 @@ import sys
 import pygame
 
 WIDTH, HEIGHT = 800, 600
-FPS = 30
+# O jogo move a bola/raquetes por frame. Em 30 FPS ele ficava lento; 60 FPS
+# mantém a velocidade original e é barato depois do cache de textos.
+FPS = 60
 WIN_SCORE = 7
 
 BG = (18, 20, 28)
@@ -26,10 +28,30 @@ CPU = (255, 120, 160)
 MUTED = (130, 136, 152)
 
 
+_FONT_CACHE = {}
+_TEXT_CACHE = {}
+
+
+def _get_font(size, bold):
+    key = (size, bool(bold))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = pygame.font.Font(None, size)
+        font.set_bold(bool(bold))
+        _FONT_CACHE[key] = font
+    return font
+
+
 def draw_text(surface, text, size, color, center=None, topleft=None, bold=False):
-    font = pygame.font.Font(None, size)
-    font.set_bold(bold)
-    image = font.render(text, True, color)
+    # Criar Font e renderizar texto a cada frame é caro no ARMv7. O placar só
+    # muda de vez em quando, então guardamos as superfícies já renderizadas.
+    key = (str(text), size, tuple(color), bool(bold))
+    image = _TEXT_CACHE.get(key)
+    if image is None:
+        image = _get_font(size, bold).render(str(text), True, color)
+        if len(_TEXT_CACHE) > 128:
+            _TEXT_CACHE.clear()
+        _TEXT_CACHE[key] = image
     rect = image.get_rect()
     if center:
         rect.center = center

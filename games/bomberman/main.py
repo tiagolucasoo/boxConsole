@@ -19,7 +19,8 @@ import sys
 import pygame
 
 WIDTH, HEIGHT = 800, 600
-FPS = 30
+# O tabuleiro agora é pré-renderizado; 60 FPS deixa a movimentação suave.
+FPS = 60
 COLS, ROWS = 15, 11
 TILE = 48
 BOARD_X = (WIDTH - COLS * TILE) // 2
@@ -62,6 +63,20 @@ def center_of(col: int, row: int) -> tuple[float, float]:
     )
 
 
+_FONT_CACHE = {}
+_TEXT_CACHE = {}
+
+
+def _get_font(size, bold):
+    key = (size, bool(bold))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = pygame.font.Font(None, size)
+        font.set_bold(bool(bold))
+        _FONT_CACHE[key] = font
+    return font
+
+
 def draw_text(
     surface,
     text,
@@ -72,9 +87,13 @@ def draw_text(
     topright=None,
     bold=False,
 ):
-    font = pygame.font.Font(None, size)
-    font.set_bold(bold)
-    image = font.render(text, True, color)
+    key = (str(text), size, tuple(color), bool(bold))
+    image = _TEXT_CACHE.get(key)
+    if image is None:
+        image = _get_font(size, bold).render(str(text), True, color)
+        if len(_TEXT_CACHE) > 160:
+            _TEXT_CACHE.clear()
+        _TEXT_CACHE[key] = image
     rect = image.get_rect()
     if center:
         rect.center = center
@@ -240,6 +259,8 @@ class Enemy:
 class Bomberman:
     def __init__(self) -> None:
         self.elapsed = 0.0
+        self._board_cache = None
+        self.board_dirty = True
         self.reset()
 
     def reset(self) -> None:
@@ -260,6 +281,7 @@ class Bomberman:
         self.state = "playing"
         self.respawn_timer = 0.0
         self.elapsed = 0.0
+        self.board_dirty = True
 
     def build_map(self) -> None:
         self.grid = [[FLOOR] * COLS for _ in range(ROWS)]
@@ -351,6 +373,7 @@ class Bomberman:
 
                     if self.grid[row][col] == BRICK:
                         self.grid[row][col] = FLOOR
+                        self.board_dirty = True
                         self.score += 10
                         self.drop_powerup(col, row)
                         break
@@ -435,9 +458,10 @@ class Bomberman:
 
 
 def draw_floor(surface) -> None:
+    # Desenha no sistema de coordenadas do tabuleiro (0,0), não na tela.
     for row in range(ROWS):
         for col in range(COLS):
-            rect = pygame.Rect(BOARD_X + col * TILE, BOARD_Y + row * TILE, TILE, TILE)
+            rect = pygame.Rect(col * TILE, row * TILE, TILE, TILE)
             pygame.draw.rect(surface, GRID_A if (col + row) % 2 == 0 else GRID_B, rect)
 
 
@@ -447,7 +471,7 @@ def draw_walls(surface, game: Bomberman) -> None:
             kind = game.grid[row][col]
             if kind == FLOOR:
                 continue
-            rect = pygame.Rect(BOARD_X + col * TILE, BOARD_Y + row * TILE, TILE, TILE)
+            rect = pygame.Rect(col * TILE, row * TILE, TILE, TILE)
             if kind == WALL:
                 pygame.draw.rect(surface, WALL_DARK, rect)
                 inner = rect.inflate(-4, -4)
@@ -665,8 +689,15 @@ def draw_overlay(surface, game: Bomberman) -> None:
 
 def draw(game: Bomberman, surface, ticks: float) -> None:
     surface.fill(BG)
-    draw_floor(surface)
-    draw_walls(surface, game)
+    # Paredes e tijolos só mudam quando um tijolo é destruído. Montar o
+    # tabuleiro uma vez e blitá-lo inteiro evita centenas de draw_rect por frame.
+    if game.board_dirty or game._board_cache is None:
+        board = pygame.Surface((COLS * TILE, ROWS * TILE)).convert()
+        draw_floor(board)
+        draw_walls(board, game)
+        game._board_cache = board
+        game.board_dirty = False
+    surface.blit(game._board_cache, (BOARD_X, BOARD_Y))
     draw_powerups(surface, game, ticks)
     draw_bombs(surface, game, ticks)
     draw_explosions(surface, game, ticks)

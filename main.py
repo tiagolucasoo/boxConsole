@@ -26,6 +26,8 @@ import os
 import sys
 import traceback
 
+import diagnostics
+
 # Evita o banner do pygame ao iniciar o menu.
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
@@ -54,6 +56,7 @@ def run_pygame(windowed: bool = False) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     args = list(sys.argv[1:] if argv is None else argv)
+    diagnostics.enable_faulthandler()
 
     if "--help" in args or "-h" in args:
         print(__doc__)
@@ -77,9 +80,18 @@ def main(argv: list[str] | None = None) -> None:
         run_pygame(windowed=windowed)
     except KeyboardInterrupt:
         pass
-    except Exception:
+    except (Exception, SystemExit) as exc:
+        # SystemExit também precisa cair no fallback: módulos auxiliares não
+        # podem encerrar o processo inteiro durante a inicialização.
+        if isinstance(exc, SystemExit) and exc.code in (0, None):
+            return
         print("\nO menu Pygame não pôde ser aberto.")
-        traceback.print_exc()
+        if not isinstance(exc, SystemExit):
+            traceback.print_exc()
+            diagnostics.log("Falha ao abrir o menu Pygame", exc_info=True)
+        else:
+            print(f"Saída inesperada durante a inicialização: {exc}")
+            diagnostics.log(f"SystemExit inesperado no menu Pygame: {exc}")
         print("\nAbrindo o menu de terminal como reserva...\n")
         try:
             import pygame
@@ -87,7 +99,11 @@ def main(argv: list[str] | None = None) -> None:
             pygame.quit()
         except Exception:
             pass
-        run_terminal()
+        try:
+            run_terminal()
+        except (Exception, SystemExit):
+            print("\nO menu de terminal também não pôde ser aberto.")
+            raise
 
 
 if __name__ == "__main__":

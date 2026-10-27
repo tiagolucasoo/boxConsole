@@ -13,7 +13,7 @@ def pacman(usuario, dificuldade):
     entrada.enable()
 
     def limpar_tela():
-        sys.stdout.write("\x1b[2J\x1b[3J\x1b[H")
+        sys.stdout.write("\x1b[2J\x1b[H")
         sys.stdout.flush()
 
     def desenhar_mapa(matriz, substituicoes, fantasmas):
@@ -36,7 +36,7 @@ def pacman(usuario, dificuldade):
                     mapa_para_imprimir += substituicoes.get(char, char)
             mapa_para_imprimir += '\n'
             
-        print(mapa_para_imprimir, end="")
+        return mapa_para_imprimir
 
     def encontrar_todas_posicoes(matriz, char):
         """Encontra todas as ocorrências de um caractere na matriz e retorna uma lista de coordenadas."""
@@ -98,19 +98,28 @@ def pacman(usuario, dificuldade):
     else:
         velocidade_jogo = 0.10
 
+    limpar_tela()
     while True:
         entrada.poll()
-        limpar_tela()
-        utilidades.logo("PacMan Py")
+        if entrada.is_pressed('f12'):
+            entrada.restore()
+            return 'sair'
+        # Redesenha no mesmo lugar em vez de limpar o scrollback. Também
+        # monta tudo em uma única escrita para o terminal não piscar.
+        sys.stdout.write("\x1b[H")
         tempo = utilidades.tempo_passado(inicio_tempo)
-
-        print(f"Você está jogando no modo {dificuldade}")
-        print("Para acessar o Menu aperte a tecla ESC")
-
-        print(f"""\nUsuário: {usuario}          Tempo: {tempo}s         Pontuação: {pontuacao}
-        """)
-
-        desenhar_mapa(mapa_matriz, substituicoes_cores, fantasmas)
+        status = (
+            Fore.YELLOW + "  ==== PACMAN PY ====\n" + Fore.RESET
+            + f"Você está jogando no modo {dificuldade}\n"
+            + "Para acessar o Menu aperte ESC (F12 sai)\n"
+            + f"\nUsuário: {usuario}          Tempo: {tempo}s         Pontuação: {pontuacao}\n\n"
+        )
+        sys.stdout.write(
+            status
+            + desenhar_mapa(mapa_matriz, substituicoes_cores, fantasmas)
+            + "\x1b[J"
+        )
+        sys.stdout.flush()
 
         time.sleep(velocidade_jogo)
 

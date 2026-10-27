@@ -23,6 +23,7 @@ existir, o espaço fica em branco e mostra apenas uma dica discreta do caminho.
 | 2048 | `game2048.png` ou `2048.png` |
 | Bomberman | `bomberman.png` |
 | Speed Racer | `speed.png` ou `corrida.png` |
+| Donkey King | `donkeyking.png` |
 
 ## Formatos e tamanho
 

@@ -10,7 +10,8 @@ class Sound:
 
         self.allowSFX = True
 
-        self.soundtrack = mixer.Sound("./sfx/main_theme.ogg")
+        # O Pygame não decodifica M4A; sounds/theme.m4a foi convertido para OGG.
+        self.soundtrack = mixer.Sound("./sfx/theme.ogg")
         self.coin = mixer.Sound("./sfx/coin.ogg")
         self.bump = mixer.Sound("./sfx/bump.ogg")
         self.stomp = mixer.Sound("./sfx/stomp.ogg")

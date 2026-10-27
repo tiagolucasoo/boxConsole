@@ -40,12 +40,19 @@ _display_offset = (
 )
 
 
+_scaled_surface = None
+
+
 def draw_display():
+    global _scaled_surface
     # Nearest neighbor é muito mais rápido que smoothscale no ARMv7.
     if _scaled_size == (configs.SCREEN_WIDTH, configs.SCREEN_HEIGHT):
         frame = screen
     else:
-        frame = pygame.transform.scale(screen, _scaled_size)
+        if _scaled_surface is None:
+            _scaled_surface = pygame.Surface(_scaled_size).convert()
+        pygame.transform.scale(screen, _scaled_size, _scaled_surface)
+        frame = _scaled_surface
 
     display.fill(0)
     display.blit(frame, _display_offset)
@@ -53,7 +60,10 @@ def draw_display():
 
 
 clock = pygame.time.Clock()
-column_create_event = pygame.USEREVENT
+# Espaçamento em pixels, não em tempo. Em um H3 lento o timer de 1,5 s
+# criava canos mais próximos que a largura de um cano (um "túnel" em cima
+# do outro). Assim o espaçamento fica correto em qualquer FPS.
+COLUMN_SPACING = 150
 running = True
 gameover = False
 gamestarted = False
@@ -84,14 +94,12 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == column_create_event:
-            Column(sprites)
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE and not gamestarted and not gameover:
                 gamestarted = True
                 game_start_message.kill()
                 start_hint.kill()
-                pygame.time.set_timer(column_create_event, 1500)
+                Column(sprites)
             if event.key == pygame.K_ESCAPE and gameover:
                 gameover = False
                 gamestarted = False
@@ -109,13 +117,16 @@ while running:
 
     if gamestarted and not gameover:
         sprites.update()
+        columns = [sprite for sprite in sprites if isinstance(sprite, Column)]
+        last_x = max((column.rect.x for column in columns), default=-9999)
+        if last_x <= configs.SCREEN_WIDTH - COLUMN_SPACING:
+            Column(sprites)
 
     if bird.check_collision(sprites) and not gameover:
         gameover = True
         gamestarted = False
         GameOverMessage(sprites)
         Hint(["ESC: voltar ao início", "Q: sair"], 330, sprites)
-        pygame.time.set_timer(column_create_event, 0)
         assets.play_audio("hit")
 
     for sprite in sprites:

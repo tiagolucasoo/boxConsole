@@ -41,9 +41,6 @@ class Game:
         self.raycasting.update()
         self.object_handler.update()
         self.weapon.update()
-        pg.display.flip()
-        self.delta_time = self.clock.tick(FPS)
-        pg.display.set_caption(f'{self.clock.get_fps() :.1f}')
 
     def draw(self):
         # self.screen.fill('black')
@@ -67,6 +64,9 @@ class Game:
             self.check_events()
             self.update()
             self.draw()
+            # Flip depois do draw: o host desenha o frame atual, não o anterior.
+            pg.display.flip()
+            self.delta_time = self.clock.tick(FPS)
 
 
 if __name__ == '__main__':

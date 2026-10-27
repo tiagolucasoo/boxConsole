@@ -29,12 +29,11 @@ if [ -z "$PY" ]; then
     exit 1
 fi
 
-# colorama é obrigatório até para o menu de terminal.
+# colorama é opcional: sem ele o terminal perde as cores, mas o launcher
+# continua funcionando. Não bloqueie a inicialização por causa disso.
 if ! "$PY" -c "import colorama" >/dev/null 2>&1; then
-    echo "Falta o colorama."
-    echo "Debian/Ubuntu: sudo apt install python3-colorama"
-    echo "Ou: $PY -m pip install --user colorama"
-    exit 1
+    echo "Aviso: colorama ausente; o menu de terminal seguirá sem cores."
+    echo "Opcional no Debian/Ubuntu: sudo apt install python3-colorama"
 fi
 
 # Se o Pygame não existir, main.py abre o menu de terminal automaticamente.

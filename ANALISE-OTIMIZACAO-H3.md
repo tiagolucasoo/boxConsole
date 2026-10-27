@@ -1,5 +1,11 @@
 # BoxConsole em Allwinner H3 — análise geral de otimização
 
+> **Nota histórica:** este documento registra uma análise anterior. Várias
+> referências de linha, dependências e números de FPS já mudaram. A fonte atual
+> é o `README.md` e o `requirements.txt`; em especial, `numpy`, `scipy`,
+> `opencv-python`, `keyboard` e `pyfiglet` não fazem mais parte das
+> dependências, e o `colorama` é opcional.
+
 **Alvo:** TV box Allwinner H3 (4× Cortex-A7 ARMv7, Mali-400 MP2), Linux, **1 GB de RAM**, **8 GB de armazenamento**, saída de vídeo típica em 720p/1080p.
 
 **Resumo:** o projeto já recebeu otimizações importantes (canvas fixo, escala nearest, cache de capas, cache do frame do jogo, mixer mono, fallback para terminal). O que ainda pesa não é o armazenamento — é **CPU e RAM**. Os maiores ganhos restantes estão em quatro frentes:

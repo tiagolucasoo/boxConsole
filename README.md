@@ -6,7 +6,8 @@ mesmo catálogo de jogos, então tudo que existe em um aparece no outro.
 
 Ao iniciar, o BoxConsole tenta abrir o menu Pygame em tela cheia. Se o Pygame
 não estiver instalado ou a tela falhar, ele abre automaticamente o menu de
-terminal — nada deixa de funcionar.
+terminal. O `colorama` é opcional: sem ele, só o menu de terminal perde as
+cores; o menu gráfico e os jogos continuam funcionando.
 
 ## Estrutura do projeto
 
@@ -21,14 +22,29 @@ recomendada.
 
 ## Otimizações para o H3 / ARMv7
 
-- O menu só redesenha quando há evento; parado, fica praticamente em 0% de CPU.
+- O menu só redesenha quando um evento relevante muda algo; mouse parado,
+  `KEYUP` e ruído do analógico não mantêm a tela a 30 FPS.
 - Textos, capas, moldura do jogo e frames do menu são cacheados.
 - Escalas de tela reaproveitam a superfície de destino (sem alocar por frame).
-- Jogos pesados ganharam perfis próprios: Doom em 640×360/240 raios, Zelda em
-  960×540 a 30 FPS, Street Fighter em 960×540 a 30 FPS sem blur por frame.
+- Jogos pesados ganharam perfis próprios: Doom em 480×270/160 raios a 24 FPS,
+  Zelda em 960×540 a 30 FPS, Street Fighter em 960×540 a 30 FPS sem blur por
+  frame e Speed Racer desenhado a 75% da resolução original.
+- Textos de jogos, sprites espelhados, tabuleiro do Bomberman e frames do
+  Flappy Bird são reaproveitados em vez de recriados a cada frame.
+- O Donkey King deixou de desenhar centenas de sprites vazios, reaproveita o
+  HUD e o fundo e usa o sprite novo de jogador (36×36) sem perder o encaixe nas
+  plataformas. O movimento roda em passos fixos de 60 Hz (~240 px/s), então não
+  desacelera quando o TV box renderiza menos que 60 FPS; toques curtos e o pulo
+  em movimento também foram ajustados.
+- Pong, Breakout e Bomberman voltaram a 60 FPS; o Flappy Bird cria canos por
+  distância (não por timer), evitando canos sobrepostos quando o FPS cai.
+- `F12`/voltar é checado no próprio frame do jogo; o Pac-Man também aceita F12
+  e agora roda em Pygame, sem abrir um terminal externo.
 - `scipy`, `opencv-python`, `numpy`, `keyboard` e `pyfiglet` não são mais
-  necessários.
+  necessários. O `colorama` também é opcional (só afeta as cores do terminal).
 - Recordes ficam em `~/.local/share/boxconsole/`, fora do repositório.
+- Logs e dumps de falha nativa ficam em `~/.local/share/boxconsole/boxconsole.log`
+  (Linux) ou `%APPDATA%\boxconsole\boxconsole.log` (Windows).
 - O `boxconsole.sh` usa o Pygame do sistema e cai no terminal se ele faltar.
 
 ## Iniciar
@@ -48,7 +64,9 @@ python main.py
 Linux / TV box:
 
 ```bash
-sudo apt install python3-colorama python3-pygame
+sudo apt install python3-pygame
+# opcional, apenas para cores no menu de terminal:
+sudo apt install python3-colorama
 bash boxconsole.sh
 ```
 
@@ -89,12 +107,15 @@ terminal é exclusiva do Windows, então no Linux/TV box use `F11` no terminal
 
 ## Dependências no Linux
 
-O BoxConsole precisa apenas de **Pygame** (menu gráfico e jogos) e **colorama**
-(menu de terminal). As dependências pesadas antigas — `numpy`, `scipy`,
-`opencv-python`, `keyboard` e `pyfiglet` — foram removidas do projeto.
+O BoxConsole precisa apenas de **Pygame** (menu gráfico e jogos). O
+**colorama** é opcional e só habilita as cores do menu de terminal. As
+dependências pesadas antigas — `numpy`, `scipy`, `opencv-python`, `keyboard` e
+`pyfiglet` — foram removidas do projeto. Recomenda-se Python 3.10 ou mais novo.
 
 ```bash
-sudo apt install python3-colorama python3-pygame
+sudo apt install python3-pygame
+# opcional:
+sudo apt install python3-colorama
 ```
 
 No Windows:
@@ -105,12 +126,20 @@ python -m pip install -r requirements.txt
 
 Observações:
 
-- O **Pac-Man** agora lê o teclado pelo próprio terminal (termios/select no
-  Linux e msvcrt no Windows), sem `keyboard` e sem `sudo`.
+- O **Pac-Man** agora tem uma versão Pygame (`pygame_main.py`) que mantém o
+  mapa e a lógica dos fantasmas, roda embutida no launcher e evita o custo do
+  terminal. O fallback externo do catálogo usa o mesmo `pygame_main.py`; o
+  `main.py` de terminal continua disponível para execução manual.
 - O **Street Fighter** não usa mais OpenCV/NumPy: o fundo desfocado é calculado
-  uma única vez com o próprio Pygame.
+  uma única vez com o próprio Pygame. A tela de seleção oferece Ryu, Ken, Akuma,
+  Zangief e Dhalzin; a CPU sorteia um oponente e só as folhas dos dois escolhidos
+  ficam na memória durante a luta. O cenário também é sorteado entre
+  `fundo-1.jpg` e `fundo-2.jpg` a cada combate.
+- No **Doom**, a arma do HUD agora é dimensionada pela altura da resolução
+  virtual (480×270), em vez de usar um `scale` fixo pensado para 1080p.
 - O **Super Mario** não usa mais SciPy: o desfoque do menu de pausa usa
-  `pygame.transform.smoothscale`.
+  `pygame.transform.smoothscale`. A trilha de fundo usa `sfx/theme.ogg`,
+  convertida de `sounds/theme.m4a` porque o Pygame não decodifica M4A.
 - Os recordes do **Tetris** e do **Speed Racer** ficam em
   `~/.local/share/boxconsole/` (Linux) ou `%APPDATA%\boxconsole` (Windows), fora
   do repositório.
@@ -143,7 +172,7 @@ Nas telas de detalhes dos dois menus há três botões navegáveis: **JOGAR**,
 remoto.
 
 Os números `1` a `9` abrem diretamente a ficha do jogo correspondente; `0` abre
-o 10º jogo (Snake Eater). Os jogos 11 a 15 são acessados pelo menu. Em um
+o 10º jogo (Snake Eater). Os jogos 11 a 16 são acessados pelo menu. Em um
 controle remoto de TV box, as setas e o OK costumam funcionar direto; o botão
 voltar envia `ESC` ou `Backspace`.
 
@@ -203,7 +232,7 @@ images/bomberman.png
 |---|------|---------|--------------|
 | 1 | Doom in PyGame | `games/Doom-PyGame/main.py` | pygame |
 | 2 | Flappy Bird | `games/flappy-bird/main.py` | pygame |
-| 3 | Pac-Man | `games/pacman/main.py` | colorama |
+| 3 | Pac-Man | `games/pacman/pygame_main.py` | pygame |
 | 4 | Street Fighter | `games/Street_Fighter/src/main.py` | pygame |
 | 5 | Super Mario | `games/super-mario-python/main.py` | pygame |
 | 6 | PyZelda RPG | `games/pyzelda-rpg/code/main.py` | pygame |
@@ -216,6 +245,7 @@ images/bomberman.png
 | 13 | 2048 | `games/2048/main.py` | pygame |
 | 14 | Bomberman | `games/bomberman/main.py` | pygame |
 | 15 | Speed Racer | `games/SPEED-RACER/Speed Racer.py` | pygame |
+| 16 | Donkey King | `games/DonkeyKing/DonkeyMain.py` | pygame |
 
 O jogo 8 já vem embutido no próprio Pygame (exemplo oficial), então não precisa
 de pasta: o BoxConsole roda `python -m pygame.examples.aliens`.
@@ -235,6 +265,13 @@ cadeia, tijolos destrutíveis e melhorias de bomba e alcance.
 O **Speed Racer** é um jogo de corrida de Keerat Sachdeva: desvie dos carros,
 colecione combustível e tente bater o recorde de distância.
 
+O **Donkey King** foi convertido para Python 3 e otimizado para o BoxConsole:
+geração de moedas sem estourar o mapa, sprites transparentes novos para o
+macaco e o barril, HUD cacheado, limite de FPS e trilha em OGG. Use `W A S D`
+ou as setas para andar/subir escadas, `Espaço`/`X`/`Z`/`Enter` para pular e
+`Q` para sair. O pulo mantém o avanço na última direção e acelera quando você
+segura uma direção.
+
 O BoxConsole inicia cada jogo na pasta correta e volta ao menu quando o jogo é
 fechado. No menu de terminal, quando a lista fica grande demais para a altura
 da tela, o logo grande é trocado automaticamente por um cabeçalho compacto.
@@ -252,9 +289,14 @@ o BoxConsole desenha essa superfície no frame, redimensionando sem cortar.
   do mouse são convertidas para a área do jogo.
 - O jogo usa o menu/teclas de saída dele normalmente; ao terminar, o BoxConsole
   volta sozinho para o menu.
-- **Pac-Man** é um jogo de terminal e abre em um console próprio, como antes.
+- **Pac-Man** usa a versão Pygame e roda embutido como os demais jogos; o
+  `main.py` de terminal continua disponível para execução manual, mas o
+  fallback automático reabre o `pygame_main.py` em uma janela própria.
+- Jogos retratos (Flappy, Sudoku, 2048 e Tetris) usam um painel lateral com
+  controles em vez de deixar grandes faixas vazias.
 - Se algum jogo não conseguir rodar embutido, o BoxConsole tenta
-  automaticamente o modo externo, sem travar o launcher.
+  automaticamente o modo externo, sem travar o launcher. Falhas ficam
+  registradas no `boxconsole.log` para diagnóstico.
 
 Para o modo embutido funcionar, o jogo precisa desenhar em Pygame e não pode
 usar OpenGL. Jogos de terminal ou que abrem janelas de outras bibliotecas
@@ -289,19 +331,21 @@ Bomberman aparecem como **Jogo Próprio**.
 
 ## Dependências do launcher
 
-O `boxconsole.sh` já cria o ambiente isolado e instala `colorama` e `pygame`
-(necessários para abrir o launcher) quando necessário. As dependências
-completas dos 15 jogos estão em `requirements.txt`. No Debian/Ubuntu/TV box,
-os pacotes equivalentes são:
+O `boxconsole.sh` **não cria ambiente virtual e não instala pacotes**. Ele usa
+o Python do sistema (ou `BOXCONSOLE_PYTHON`/`VIRTUAL_ENV`) e apenas avisa se o
+`colorama` estiver ausente. As dependências completas dos 16 jogos estão em
+`requirements.txt`. No Debian/Ubuntu/TV box, os pacotes equivalentes são:
 
 ```bash
-sudo apt install python3-colorama python3-pygame
+sudo apt install python3-pygame
+# opcional, somente para cores no terminal:
+sudo apt install python3-colorama
 ```
 
 Evite `python -m pip install` no Python do sistema em distribuições com PEP 668.
 
-O `colorama` também é usado pelo menu de terminal de reserva. Sem o Pygame, o
-BoxConsole continua abrindo no terminal.
+O `colorama` também é usado pelo menu de terminal de reserva, mas não é
+obrigatório. Sem o Pygame, o BoxConsole continua abrindo no terminal.
 
 ## Créditos
 

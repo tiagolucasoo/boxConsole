@@ -15,7 +15,8 @@ import sys
 import pygame
 
 WIDTH, HEIGHT = 800, 600
-FPS = 30
+# Movimento por frame: 60 FPS preserva a velocidade original.
+FPS = 60
 PADDLE_W, PADDLE_H = 120, 16
 BALL_SIZE = 14
 BRICK_ROWS = 6
@@ -39,10 +40,28 @@ ROW_COLORS = [
 ]
 
 
+_FONT_CACHE = {}
+_TEXT_CACHE = {}
+
+
+def _get_font(size, bold):
+    key = (size, bool(bold))
+    font = _FONT_CACHE.get(key)
+    if font is None:
+        font = pygame.font.Font(None, size)
+        font.set_bold(bool(bold))
+        _FONT_CACHE[key] = font
+    return font
+
+
 def draw_text(surface, text, size, color, center=None, topleft=None, bold=False):
-    font = pygame.font.Font(None, size)
-    font.set_bold(bold)
-    image = font.render(text, True, color)
+    key = (str(text), size, tuple(color), bool(bold))
+    image = _TEXT_CACHE.get(key)
+    if image is None:
+        image = _get_font(size, bold).render(str(text), True, color)
+        if len(_TEXT_CACHE) > 128:
+            _TEXT_CACHE.clear()
+        _TEXT_CACHE[key] = image
     rect = image.get_rect()
     if center:
         rect.center = center

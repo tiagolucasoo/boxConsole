@@ -1,13 +1,13 @@
 import math
 
 # game settings
-# 960x540 é exatamente a área de jogo do BoxConsole. Renderizar em
-# 1600x900 e reduzir depois desperdiça CPU/GPU em TV boxes ARMv7.
-RES = WIDTH, HEIGHT = 640, 360
+# O H3 é ARMv7 e o raycasting é feito na CPU. 480x270 com 160 raios deixa o
+# jogo jogável; o host do BoxConsole amplia para a área de 960x540.
+RES = WIDTH, HEIGHT = 480, 270
 # RES = WIDTH, HEIGHT = 1920, 1080
 HALF_WIDTH = WIDTH // 2
 HALF_HEIGHT = HEIGHT // 2
-FPS = 30
+FPS = 24
 
 PLAYER_POS = 1.5, 5  # mini_map
 PLAYER_ANGLE = 0
@@ -25,8 +25,9 @@ FLOOR_COLOR = (30, 30, 30)
 
 FOV = math.pi / 3
 HALF_FOV = FOV / 2
-# 320 raios (antes 480) com SCALE=2 cobre a largura de 640 px sem faixas.
-NUM_RAYS = WIDTH // 2
+# 160 raios com SCALE=3 cobrem os 480 px sem faixas. Cada raio gera um
+# transform.scale; reduzir de 320 para 160 foi o maior ganho no H3.
+NUM_RAYS = WIDTH // 3
 HALF_NUM_RAYS = NUM_RAYS // 2
 DELTA_ANGLE = FOV / NUM_RAYS
 MAX_DEPTH = 20
@@ -34,5 +35,6 @@ MAX_DEPTH = 20
 SCREEN_DIST = HALF_WIDTH / math.tan(HALF_FOV)
 SCALE = WIDTH // NUM_RAYS
 
-TEXTURE_SIZE = 256
+# Textura menor também reduz o custo de subsurface/scale por coluna.
+TEXTURE_SIZE = 128
 HALF_TEXTURE_SIZE = TEXTURE_SIZE // 2

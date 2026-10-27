@@ -27,6 +27,7 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 import pygame
 
 import console_ui as catalog
+import diagnostics
 import game_host
 
 # ---------------------------------------------------------------------------
@@ -270,6 +271,9 @@ class Launcher:
         self.mouse_pos = (-200, -200)
 
         self.cover_cache: dict[tuple[str, tuple[int, int]], pygame.Surface | None] = {}
+        self.cover_source_cache: dict[Path, pygame.Surface | None] = {}
+        self.cover_path_cache: dict[str, Path | None] = {}
+        self.cover_index: dict[str, Path] | None = None
         self.status = {game["id"]: status_of(game) for game in catalog.GAMES}
 
         self.joysticks: list[pygame.joystick.Joystick] = []
@@ -318,7 +322,8 @@ class Launcher:
         clear_text_caches()
         self.canvas = pygame.Surface((VW, VH)).convert()
         self.bg = self.build_background()
-        self.cover_cache.clear()
+        # As capas são superfícies independentes do display. Mantê-las no
+        # cache evita redecodificar tudo ao alternar F11 tela cheia/janela.
         self._dim = None
         self._game_chrome = None
         self._game_chrome_key = None
@@ -539,27 +544,58 @@ class Launcher:
     # Capas
     # ------------------------------------------------------------------
 
-    def find_cover(self, game_id: str) -> Path | None:
-        wanted = {name.lower() for name in COVER_ALIASES.get(game_id, (game_id,))}
+    def _build_cover_index(self) -> None:
+        """Indexa as capas uma vez; evita varrer pastas a cada tamanho."""
+        index: dict[str, Path] = {}
         for directory in IMAGE_DIRS:
             if not directory.is_dir():
                 continue
-            for path in directory.iterdir():
-                if (
-                    path.is_file()
-                    and path.stem.lower() in wanted
-                    and path.suffix.lower() in COVER_EXTS
-                ):
-                    return path
-        return None
+            try:
+                for path in directory.iterdir():
+                    if path.is_file() and path.suffix.lower() in COVER_EXTS:
+                        index.setdefault(path.stem.lower(), path)
+            except OSError:
+                continue
+        self.cover_index = index
+
+    def find_cover(self, game_id: str) -> Path | None:
+        if game_id in self.cover_path_cache:
+            return self.cover_path_cache[game_id]
+        if self.cover_index is None:
+            self._build_cover_index()
+        assert self.cover_index is not None
+        found = None
+        for name in COVER_ALIASES.get(game_id, (game_id,)):
+            found = self.cover_index.get(name.lower())
+            if found is not None:
+                break
+        self.cover_path_cache[game_id] = found
+        return found
 
     def preload_covers(self) -> None:
-        """Carrega as capas grandes uma vez, fora do laço de desenho."""
+        """Pré-carrega as capas visíveis e as miniaturas do carrossel."""
         for game in catalog.GAMES:
-            try:
-                self.get_cover(game["id"], (520, 292))
-            except Exception:
-                pass
+            for size in ((520, 292), (156, 88)):
+                try:
+                    self.get_cover(game["id"], size)
+                except Exception:
+                    pass
+
+    def _cover_source(self, path: Path) -> pygame.Surface | None:
+        if path in self.cover_source_cache:
+            return self.cover_source_cache[path]
+        try:
+            image = pygame.image.load(str(path))
+            # JPEG/BMP não têm transparência; convert_alpha() só desperdiça
+            # memória e tempo nesses formatos.
+            if path.suffix.lower() in (".png", ".webp"):
+                image = image.convert_alpha()
+            else:
+                image = image.convert()
+        except Exception:
+            image = None
+        self.cover_source_cache[path] = image
+        return image
 
     def get_cover(self, game_id: str, size: tuple[int, int]) -> pygame.Surface | None:
         size = (max(1, int(size[0])), max(1, int(size[1])))
@@ -572,18 +608,22 @@ class Launcher:
             self.cover_cache[key] = None
             return None
 
+        source = self._cover_source(path)
+        if source is None:
+            self.cover_cache[key] = None
+            return None
+
         try:
-            image = pygame.image.load(str(path)).convert_alpha()
-            iw, ih = image.get_size()
+            iw, ih = source.get_size()
             # Mostra a arte inteira (sem cortar). Se não for 16:9, sobram
             # faixas discretas na cor do painel.
             scale = min(size[0] / iw, size[1] / ih)
             nw, nh = max(1, int(iw * scale + 0.5)), max(1, int(ih * scale + 0.5))
-            image = pygame.transform.smoothscale(image, (nw, nh))
+            scaled = pygame.transform.smoothscale(source, (nw, nh))
             fitted = pygame.Surface(size).convert()
             fitted.fill((20, 24, 35))
-            fitted.blit(image, ((size[0] - nw) // 2, (size[1] - nh) // 2))
-            image = fitted
+            fitted.blit(scaled, ((size[0] - nw) // 2, (size[1] - nh) // 2))
+            image: pygame.Surface | None = fitted
         except Exception:
             image = None
 
@@ -731,18 +771,36 @@ class Launcher:
         gw = max(1, int(sw * scale))
         gh = max(1, int(sh * scale))
         game_rect = pygame.Rect(0, 0, gw, gh)
-        game_rect.center = area.center
+
+        # Jogos retratos (Flappy, Sudoku, 2048, Tetris) deixavam faixas
+        # escuras enormes. Em vez de centralizar, usamos a lateral direita
+        # para uma ficha compacta do jogo.
+        panel_rect: pygame.Rect | None = None
+        if gw <= gh and area.w - gw > 180:
+            game_rect.left = area.left + 24
+            game_rect.centery = area.centery
+            panel_x = game_rect.right + 28
+            panel_rect = pygame.Rect(
+                panel_x,
+                area.top + 24,
+                max(1, area.right - panel_x - 24),
+                area.height - 48,
+            )
+        else:
+            game_rect.center = area.center
 
         # O cabeçalho, a moldura e o rodapé são iguais em todos os frames.
         # Monta uma única vez e só blita o jogo por cima; evita renderizar
         # textos e formas de tela cheia a cada frame do jogo.
-        key = (game["id"], sw, sh, gw, gh)
+        key = (game["id"], sw, sh, gw, gh, tuple(panel_rect) if panel_rect else None)
         if key != self._game_chrome_key or self._game_chrome is None:
             chrome = pygame.Surface((VW, VH)).convert()
             chrome.blit(self.bg, (0, 0))
             self.draw_header(game, chrome)
             pygame.draw.rect(chrome, (8, 11, 18), area, border_radius=14)
             pygame.draw.rect(chrome, (48, 56, 76), area, 1, border_radius=14)
+            if panel_rect is not None:
+                self._draw_portrait_panel(chrome, game, accent, panel_rect)
             self._draw_game_footer(chrome, accent, button)
             self._game_chrome = chrome
             self._game_chrome_key = key
@@ -766,6 +824,59 @@ class Launcher:
         pygame.draw.rect(surface, accent, game_rect, 2, border_radius=8)
         host.game_rect = game_rect
         self.present()
+
+    def _draw_portrait_panel(self, surface, game: dict, accent, rect: pygame.Rect) -> None:
+        """Ficha lateral para jogos retratos, no lugar de faixas vazias."""
+        pygame.draw.rect(surface, PANEL, rect, border_radius=14)
+        pygame.draw.rect(surface, mix(accent, BORDER, 0.45), rect, 1, border_radius=14)
+
+        x = rect.x + 22
+        width = max(1, rect.width - 44)
+        y = rect.y + 20
+        draw_text(surface, "FORMATO RETRATO", 13, FAINT, (x, y), bold=True)
+        y += 25
+        draw_text(
+            surface,
+            ellipsize(game["nome"], get_font(25, True), width),
+            25,
+            TEXT,
+            (x, y),
+            bold=True,
+        )
+        y += 36
+        meta = f"{game['genero']}  ·  {game['players']}"
+        draw_text(surface, ellipsize(meta, get_font(14), width), 14, MUTED, (x, y))
+        y += 30
+
+        description_font = get_font(16)
+        for line in wrap_text(game["descricao"], description_font, width)[:3]:
+            draw_text(surface, line, 16, MUTED, (x, y))
+            y += 21
+
+        y += 12
+        draw_text(surface, "CONTROLES", 13, FAINT, (x, y), bold=True)
+        y += 24
+        for keys, action in game.get("controles", [])[:5]:
+            key_text = ellipsize(str(keys), get_font(15, True), 150)
+            draw_text(surface, key_text, 15, accent, (x, y), bold=True)
+            draw_text(
+                surface,
+                ellipsize(action, get_font(15), width - 170),
+                15,
+                TEXT,
+                (x + 160, y),
+            )
+            y += 24
+
+        hint_y = rect.bottom - 28
+        if y < hint_y:
+            draw_text(
+                surface,
+                "F12 ou VOLTAR encerra o jogo",
+                13,
+                FAINT,
+                (x, hint_y),
+            )
 
     def draw_credit(self, surface=None) -> None:
         """Crédito do projeto, discreto no rodapé de todas as telas do menu."""
@@ -1046,6 +1157,14 @@ class Launcher:
             (112, left_y),
         )
         left_y += 24
+        perfil = game.get("perfil") or {}
+        resolucao = perfil.get("res")
+        fps = perfil.get("fps")
+        perfil_text = f"Perfil: {resolucao[0]}x{resolucao[1]}" if resolucao else "Perfil: adaptativo"
+        if fps:
+            perfil_text += f" · {fps} FPS"
+        draw_text(surface, perfil_text, 16, MUTED, (112, left_y))
+        left_y += 24
         embedded = game_host.GameHost.can_embed(game)
         draw_text(
             surface,
@@ -1214,18 +1333,25 @@ class Launcher:
             )
         else:
             env_lines.append("Áudio: mixer indisponível (menu segue em silêncio)")
-        y = 158
+        env_y = 158
         for line in env_lines:
-            draw_text(surface, ellipsize(line, get_font(18), 1050), 18, MUTED, (112, y))
-            y += 26
+            draw_text(surface, ellipsize(line, get_font(18), 1050), 18, MUTED, (112, env_y))
+            env_y += 24
 
-        draw_text(surface, "STATUS DOS JOGOS", 14, FAINT, (112, 248), bold=True)
+        # As posições abaixo são calculadas a partir das linhas de ambiente.
+        # Antes eram fixas e a quarta linha/última coluna invadiam os títulos.
+        status_title_y = env_y + 6
+        draw_text(surface, "STATUS DOS JOGOS", 14, FAINT, (112, status_title_y), bold=True)
         half = (len(catalog.GAMES) + 1) // 2
         column_width = 470
+        status_top = status_title_y + 30
+        row_step = min(30, max(22, (512 - status_top) // max(1, half)))
         for column in range(2):
             x = 112 + column * (column_width + 46)
-            row_y = 278
-            for index in range(column * half, min((column + 1) * half, len(catalog.GAMES))):
+            for row, index in enumerate(
+                range(column * half, min((column + 1) * half, len(catalog.GAMES)))
+            ):
+                row_y = status_top + row * row_step
                 game = catalog.GAMES[index]
                 entry = self.status.get(game["id"])
                 if entry is None:
@@ -1247,7 +1373,6 @@ class Launcher:
                     anchor="topright",
                     bold=True,
                 )
-                row_y += 32
 
         draw_text(surface, "BIBLIOTECAS", 14, FAINT, (112, 520), bold=True)
         draw_text(
@@ -1306,10 +1431,15 @@ class Launcher:
             self.selected = (self.selected + delta) % len(catalog.GAMES)
             if self.selected != previous:
                 self.play_hover()
+                self.dirty = True
         elif self.mode == "details":
+            previous = self.details_focus
             self.details_focus = (self.details_focus + delta) % 3
+            if self.details_focus != previous:
+                self.dirty = True
 
     def confirm(self) -> None:
+        self.dirty = True
         if self.mode == "menu":
             self.play_select()
             self.mode = "details"
@@ -1334,9 +1464,11 @@ class Launcher:
             self.stop_menu_sounds()
             self.mode = "menu"
             self.details_message = ""
+            self.dirty = True
 
     def open_repo(self, game: dict) -> None:
         self.details_message = catalog.open_repository(game)
+        self.dirty = True
 
     def refresh_status(self) -> None:
         catalog.clear_module_cache()
@@ -1381,6 +1513,7 @@ class Launcher:
             raise
         except Exception as exc:
             traceback.print_exc()
+            diagnostics.log(f"Erro no jogo embutido {game['id']}", exc_info=True)
             if host.frames_rendered <= 1:
                 fallback = True
             else:
@@ -1407,6 +1540,12 @@ class Launcher:
             # O jogo pode ter parado/reinicializado o mixer; recarrega os sons
             # do menu para que continuem válidos ao voltar.
             self.init_audio()
+            # Libera as superfícies de moldura/frame do jogo; elas não são
+            # necessárias no menu e podem ocupar vários MB no H3.
+            self._game_chrome = None
+            self._game_chrome_key = None
+            self._game_scaled = None
+            self._game_scaled_size = (0, 0)
 
         if fallback:
             self.toast = (
@@ -1443,6 +1582,10 @@ class Launcher:
 
         pygame.event.clear()
         pygame.display.quit()
+        # Aqui o display é realmente encerrado (diferente do F11), então as
+        # superfícies convertidas podem ficar inválidas. Recarrega do zero.
+        self.cover_cache.clear()
+        self.cover_source_cache.clear()
 
         message = ""
         try:
@@ -1459,6 +1602,7 @@ class Launcher:
         except KeyboardInterrupt:
             message = "Jogo interrompido."
         except Exception as exc:
+            diagnostics.log(f"Erro ao iniciar externamente {game['id']}", exc_info=True)
             message = f"Erro ao iniciar {game['nome']}: {exc}"
 
         pygame.display.init()
@@ -1480,9 +1624,19 @@ class Launcher:
         if first_event is not None and first_event.type != pygame.NOEVENT:
             events.append(first_event)
         events.extend(pygame.event.get())
-        if events:
-            self.dirty = True
+        # Apenas eventos que podem alterar o desenho acordam o laço. Movimento
+        # de mouse e ruído do analógico não devem manter o menu a 30 FPS.
+        immediate_redraw = {
+            pygame.QUIT,
+            pygame.VIDEORESIZE,
+            pygame.MOUSEBUTTONDOWN,
+            pygame.MOUSEWHEEL,
+            pygame.JOYBUTTONDOWN,
+            pygame.JOYHATMOTION,
+        }
         for event in events:
+            if event.type in immediate_redraw:
+                self.dirty = True
             if event.type == pygame.QUIT:
                 self.request_exit()
                 return
@@ -1491,6 +1645,23 @@ class Launcher:
                 self.screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
 
             elif event.type == pygame.KEYDOWN:
+                # Segurar Enter/Espaço não pode abrir a ficha e iniciar o jogo
+                # no mesmo instante por causa da repetição automática.
+                if getattr(event, "repeat", False) and event.key in (
+                    pygame.K_RETURN,
+                    pygame.K_KP_ENTER,
+                    pygame.K_SPACE,
+                    pygame.K_j,
+                    pygame.K_r,
+                    pygame.K_d,
+                    pygame.K_F11,
+                    pygame.K_ESCAPE,
+                    pygame.K_BACKSPACE,
+                    pygame.K_q,
+                ):
+                    continue
+
+                self.dirty = True
                 if event.key == pygame.K_F11:
                     self.toggle_fullscreen()
                     continue
@@ -1559,11 +1730,14 @@ class Launcher:
                             if index != self.selected:
                                 self.selected = index
                                 self.play_hover()
+                                self.dirty = True
                             break
                 elif self.mode == "details":
                     for focus, rect in self.detail_buttons.items():
                         if rect.collidepoint(self.mouse_pos):
-                            self.details_focus = focus
+                            if focus != self.details_focus:
+                                self.details_focus = focus
+                                self.dirty = True
                             break
 
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:

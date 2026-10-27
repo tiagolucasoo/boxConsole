@@ -9,6 +9,7 @@ class Score(pygame.sprite.Sprite):
     def __init__(self, *groups):
         self._layer = Layer.UI
         self.value = 0
+        self._last_value = None
         self.image = pygame.surface.Surface((0, 0), pygame.SRCALPHA)
 
         self.__create()
@@ -36,4 +37,7 @@ class Score(pygame.sprite.Sprite):
             x += img.get_width()
 
     def update(self):
-        self.__create()
+        # Recriar a superfície do placar a cada frame era desperdício.
+        if self.value != self._last_value:
+            self.__create()
+            self._last_value = self.value

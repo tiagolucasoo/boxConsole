@@ -26,7 +26,7 @@ Uso:
     python console_ui.py
 
 Dependências:
-    pip install colorama
+    colorama é opcional; sem ele o terminal funciona sem cores.
 """
 
 from __future__ import annotations
@@ -44,12 +44,20 @@ from pathlib import Path
 
 try:
     from colorama import Back, Fore, Style, init as colorama_init
+
+    HAS_COLORAMA = True
 except ImportError:
-    print("BoxConsole precisa do colorama.")
-    print("Windows: execute BoxConsole.bat")
-    print("Linux/TV box: execute bash boxconsole.sh")
-    print("Ou instale pelo sistema: sudo apt install python3-colorama")
-    raise SystemExit(1)
+    # O catálogo e o menu Pygame não dependem de colorama. No terminal,
+    # ausência do pacote apenas desliga as cores em vez de impedir o launcher.
+    class _NoColor:
+        def __getattr__(self, _name: str) -> str:
+            return ""
+
+    Back = Fore = Style = _NoColor()  # type: ignore[assignment]
+    HAS_COLORAMA = False
+
+    def colorama_init(*_args, **_kwargs) -> None:
+        return None
 
 colorama_init()
 # Garante acentos e desenhos de caixa no terminal (Windows incluso).
@@ -90,7 +98,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (640, 360), "fps": 30},
+        "perfil": {"res": (480, 270), "fps": 24},
         "pasta": "Doom-PyGame",
         "entry": "main.py",
         "comando": "python main.py",
@@ -128,25 +136,26 @@ GAMES = [
     },
     {
         "id": "pacman",
-        "embed": False,
+        "embed": True,
         "nome": "Pac-Man",
         "genero": "Arcade · Labirinto",
         "players": "1 jogador",
         "descricao": (
-            "Recriação do clássico no terminal, com quatro fantasmas e estratégias "
+            "Recriação em Pygame do clássico, com quatro fantasmas e estratégias "
             "próprias de perseguição, três dificuldades, pausa e pontuação."
         ),
         "controles": [
             ("W A S D / setas", "mover o Pac-Man"),
-            ("ESC", "pausar / abrir o menu"),
+            ("ESC / P", "pausar e abrir o menu"),
             ("Enter", "confirmar opções"),
+            ("F12", "voltar ao menu do BoxConsole"),
         ],
-        "stack": ["Python", "Terminal", "colorama"],
-        "deps": ["colorama"],
-        "perfil": {"res": None, "fps": 0},
+        "stack": ["Python", "Pygame"],
+        "deps": ["pygame"],
+        "perfil": {"res": (960, 540), "fps": 60},
         "pasta": "pacman",
-        "entry": "main.py",
-        "comando": "python main.py",
+        "entry": "pygame_main.py",
+        "comando": "python pygame_main.py",
         "cor": Fore.YELLOW,
         "repo": "https://github.com/tiagolucasoo/pacman",
         "site": None,
@@ -195,7 +204,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (640, 480), "fps": 30},
+        "perfil": {"res": (640, 480), "fps": 60},
         "pasta": "super-mario-python",
         "entry": "main.py",
         "comando": "python main.py",
@@ -204,6 +213,34 @@ GAMES = [
         "site": None,
         "autor": "mx0c (inspirado em Meth-Meth-Method)",
         "licenca": "Não informada na pasta",
+    },
+    {
+        "id": "donkeyking",
+        "nome": "Donkey King",
+        "genero": "Plataforma 2D · Arcade",
+        "players": "1 jogador",
+        "descricao": (
+            "Suba as plataformas, desvie dos barris e dos macacos e alcance a "
+            "taça para avançar. Três fases com moedas, vidas extras e perigos "
+            "aleatórios, agora rodando em Python 3."
+        ),
+        "controles": [
+            ("W A S D / setas", "mover e subir/descer escadas"),
+            ("Espaço / X / Z / Enter", "pular"),
+            ("Q", "sair do jogo"),
+            ("F12", "voltar ao menu do BoxConsole"),
+        ],
+        "stack": ["Python", "Pygame"],
+        "deps": ["pygame"],
+        "perfil": {"res": (1300, 630), "fps": 60},
+        "pasta": "DonkeyKing",
+        "entry": "DonkeyMain.py",
+        "comando": "python DonkeyMain.py",
+        "cor": Fore.YELLOW,
+        "repo": "https://github.com/pinkeshbadjatiya/DonkeyKing",
+        "site": None,
+        "autor": "Pinkesh Badjatiya",
+        "licenca": "GPLv3",
     },
     {
         "id": "zelda",
@@ -334,7 +371,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (720, 480), "fps": 60},
+        "perfil": {"res": (720, 480), "fps": 25},
         "pasta": "snake-pygame",
         "entry": "Snake Game.py",
         "comando": 'python "Snake Game.py"',
@@ -360,7 +397,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (800, 600), "fps": 30},
+        "perfil": {"res": (800, 600), "fps": 60},
         "pasta": "pong",
         "entry": "main.py",
         "comando": "python main.py",
@@ -387,7 +424,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (800, 600), "fps": 30},
+        "perfil": {"res": (800, 600), "fps": 60},
         "pasta": "breakout",
         "entry": "main.py",
         "comando": "python main.py",
@@ -441,7 +478,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (800, 600), "fps": 30},
+        "perfil": {"res": (800, 600), "fps": 60},
         "pasta": "bomberman",
         "entry": "main.py",
         "comando": "python main.py",
@@ -468,7 +505,7 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (1200, 700), "fps": 30},
+        "perfil": {"res": (900, 525), "fps": 30},
         "pasta": "SPEED-RACER",
         "entry": "Speed Racer.py",
         "comando": 'python "Speed Racer.py"',
@@ -752,13 +789,15 @@ def header(tight: bool = False, very_tight: bool = False) -> list[str]:
     return lines
 
 
-def slim_header(section: str) -> list[str]:
-    lines = [
-        "",
+def slim_header(section: str, one_line: bool = False) -> list[str]:
+    title = (
         "  "
         + brand()
-        + f"{Fore.LIGHTBLACK_EX}  {CH['arrow']}  {section}{Style.RESET_ALL}",
-    ]
+        + f"{Fore.LIGHTBLACK_EX}  {CH['arrow']}  {section}{Style.RESET_ALL}"
+    )
+    if one_line:
+        return [title]
+    lines = ["", title]
     if not COMPACT:
         lines.append("")
     return lines
@@ -946,7 +985,19 @@ def draw_main(selected: int) -> str:
     lines.append(brow(heading))
     lines.append(hsep())
 
-    for index, game in enumerate(GAMES):
+    # Em terminais baixos a lista completa não cabe. Mostra uma janela ao
+    # redor do jogo selecionado, mantendo a navegação previsível.
+    total = len(GAMES)
+    visible_games = max(1, term_lines() - len(lines) - 4)
+    if visible_games >= total:
+        start = 0
+        end = total
+    else:
+        start = max(0, min(selected - visible_games // 2, total - visible_games))
+        end = start + visible_games
+
+    for index in range(start, end):
+        game = GAMES[index]
         status_text, status_color = game_status(game)
         selected_now = selected == index
 
@@ -966,11 +1017,17 @@ def draw_main(selected: int) -> str:
         lines.append(brow(left + " " * gap + right))
 
     lines.append(bbot())
-    lines.append(
-        footer(
-            f"{CH['updown']} navegar   {CH['enter']}/OK detalhes   J jogar   D diagnóstico   Q sair"
+    if end - start >= total:
+        ajuda = (
+            f"{CH['updown']} navegar   {CH['enter']}/OK detalhes   "
+            "J jogar   D diagnóstico   Q sair"
         )
-    )
+    else:
+        ajuda = (
+            f"{CH['updown']} navegar  {CH['enter']} detalhes  J jogar  D diag  Q sair"
+            f"   {start + 1:02d}-{end:02d}/{total:02d}"
+        )
+    lines.append(footer(ajuda))
 
     # Rodapé de crédito, sem estourar a altura disponível do terminal.
     available = max(0, term_lines() - len(lines))
@@ -1031,8 +1088,11 @@ def draw_details(index: int, message: str = "", focus: int = 0) -> str:
     status_text, status_color = game_status(game)
     repo = game.get("repo")
     repo_texto = game.get("repo_texto")
+    very_compact = term_lines() < 24
+    ultra_compact = term_lines() < 22
+    micro_compact = term_lines() < 19
 
-    lines = slim_header("DETALHES DO JOGO")
+    lines = slim_header("DETALHES DO JOGO", one_line=very_compact)
     lines.append(btop())
     lines.append(brow(center(f"{accent}{Style.BRIGHT}{game['nome']}{Style.RESET_ALL}", INNER)))
     meta = f"{game['genero']}  {CH['dot']}  {game['players']}  {CH['dot']}  {game['pasta']}"
@@ -1050,8 +1110,14 @@ def draw_details(index: int, message: str = "", focus: int = 0) -> str:
     label = lambda text: brow(f"{accent}{Style.BRIGHT}{text}{Style.RESET_ALL}")
     gap = [] if COMPACT else [brow("")]
 
-    lines.append(label("VISÃO GERAL"))
-    for chunk in wrap(game["descricao"], INNER - 2):
+    if not ultra_compact:
+        lines.append(label("VISÃO GERAL"))
+    descricao = wrap(game["descricao"], INNER - 2)
+    desc_limit = 1 if micro_compact else (2 if very_compact else len(descricao))
+    if len(descricao) > desc_limit:
+        descricao = descricao[:desc_limit]
+        descricao[-1] = clip_plain(descricao[-1] + " …", INNER - 2)
+    for chunk in descricao:
         lines.append(brow(f"  {chunk}"))
 
     lines.extend(gap)
@@ -1063,15 +1129,39 @@ def draw_details(index: int, message: str = "", focus: int = 0) -> str:
 
     lines.extend(gap)
     lines.append(label("FICHA TÉCNICA"))
-    lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Stack:{Style.RESET_ALL} {clip_plain(' · '.join(game['stack']), INNER - 12)}"))
-    lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Dependências:{Style.RESET_ALL} {deps_styled(game)}"))
-    lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Licença:{Style.RESET_ALL} {game['licenca']}"))
-    lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Autor:{Style.RESET_ALL} {game['autor']}"))
+    if very_compact:
+        stack = clip_plain(" · ".join(game["stack"]), max(8, INNER - 24))
+        lines.append(
+            brow(
+                f"  {Fore.LIGHTBLACK_EX}Stack:{Style.RESET_ALL} {stack}"
+                f"   {Fore.LIGHTBLACK_EX}Deps:{Style.RESET_ALL} {deps_styled(game)}"
+            )
+        )
+        autor = clip_plain(game["autor"], max(8, INNER - 34))
+        lines.append(
+            brow(
+                f"  {Fore.LIGHTBLACK_EX}Licença:{Style.RESET_ALL} {game['licenca']}"
+                f"   {Fore.LIGHTBLACK_EX}Autor:{Style.RESET_ALL} {autor}"
+            )
+        )
+    else:
+        lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Stack:{Style.RESET_ALL} {clip_plain(' · '.join(game['stack']), INNER - 12)}"))
+        lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Dependências:{Style.RESET_ALL} {deps_styled(game)}"))
+        lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Licença:{Style.RESET_ALL} {game['licenca']}"))
+        lines.append(brow(f"  {Fore.LIGHTBLACK_EX}Autor:{Style.RESET_ALL} {game['autor']}"))
 
     lines.extend(gap)
-    lines.append(label("REPOSITÓRIO ORIGINAL"))
+    if not ultra_compact:
+        lines.append(label("REPOSITÓRIO ORIGINAL"))
     if repo:
-        lines.append(brow(f"  {Fore.LIGHTCYAN_EX}{repo}{Style.RESET_ALL}"))
+        prefix = (
+            f"  {Fore.LIGHTBLACK_EX}Repo:{Style.RESET_ALL} "
+            if ultra_compact
+            else "  "
+        )
+        lines.append(
+            brow(f"{prefix}{Fore.LIGHTCYAN_EX}{clip_plain(repo, INNER - 10)}{Style.RESET_ALL}")
+        )
     elif repo_texto:
         lines.append(brow(f"  {Fore.LIGHTYELLOW_EX}{repo_texto}{Style.RESET_ALL}"))
     else:
@@ -1095,6 +1185,19 @@ def draw_details(index: int, message: str = "", focus: int = 0) -> str:
         )
         lines.append(brow(center(buttons, INNER)))
     lines.append(bbot())
+
+    # Em terminais muito baixos ainda pode faltar espaço. Remove apenas os
+    # rótulos de seção, preservando conteúdo e botões, até caber na altura.
+    limit = max(12, term_lines())
+    if len(lines) > limit:
+        for marker in ("VISÃO GERAL", "CONTROLES", "FICHA TÉCNICA", "REPOSITÓRIO ORIGINAL"):
+            if len(lines) <= limit:
+                break
+            for position, line in enumerate(lines):
+                plain = ANSI_RE.sub("", line).strip(" │")
+                if plain == marker:
+                    lines.pop(position)
+                    break
     return "\n".join(lines)
 
 
@@ -1244,10 +1347,13 @@ def launch_game(game: dict) -> None:
 
 def draw_system() -> str:
     refresh_layout()
-    lines = slim_header("SISTEMA & DIAGNÓSTICO")
+    very_compact = term_lines() < 24
+    ultra_compact = term_lines() < 20
+    lines = slim_header("SISTEMA & DIAGNÓSTICO", one_line=very_compact)
     lines.append(btop())
-    lines.append(brow(center(f"{Fore.WHITE}{Style.BRIGHT}AMBIENTE{Style.RESET_ALL}", INNER)))
-    lines.append(hsep())
+    if not very_compact:
+        lines.append(brow(center(f"{Fore.WHITE}{Style.BRIGHT}AMBIENTE{Style.RESET_ALL}", INNER)))
+        lines.append(hsep())
     pyver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     arch = "64-bit" if sys.maxsize > 2**32 else "32-bit"
     platform_name = (
@@ -1261,7 +1367,8 @@ def draw_system() -> str:
     lines.append(brow(f"  {Fore.LIGHTBLACK_EX}BoxConsole:{Style.RESET_ALL} v{APP_VERSION}  {CH['dot']}  {clip_plain(str(BASE_DIR), INNER - 38)}"))
 
     lines.extend([] if COMPACT else [brow("")])
-    lines.append(brow(f"{Fore.CYAN}{Style.BRIGHT}STATUS DOS JOGOS{Style.RESET_ALL}"))
+    if not ultra_compact:
+        lines.append(brow(f"{Fore.CYAN}{Style.BRIGHT}STATUS DOS JOGOS{Style.RESET_ALL}"))
     if COMPACT and len(GAMES) > 8:
         # Muitos jogos: mostra o status em duas colunas para caber na tela.
         col = (INNER - 2) // 2
@@ -1287,7 +1394,8 @@ def draw_system() -> str:
             lines.append(brow(left + " " * gap + right))
 
     lines.extend([] if COMPACT else [brow("")])
-    lines.append(brow(f"{Fore.CYAN}{Style.BRIGHT}BIBLIOTECAS{Style.RESET_ALL}"))
+    if not ultra_compact:
+        lines.append(brow(f"{Fore.CYAN}{Style.BRIGHT}BIBLIOTECAS{Style.RESET_ALL}"))
     all_deps = []
     for game in GAMES:
         for dep in game["deps"]:
@@ -1300,8 +1408,9 @@ def draw_system() -> str:
     ]
     for dep_row in pack_styled(dep_items, INNER - 2):
         lines.append(brow(f"  {dep_row}"))
-    lines.append(brow(f"  {Fore.LIGHTBLACK_EX}{clip_plain('Instale o que faltar com: python -m pip install <pacote>', INNER - 2)}{Style.RESET_ALL}"))
-    lines.append(hsep())
+    if not ultra_compact:
+        lines.append(brow(f"  {Fore.LIGHTBLACK_EX}{clip_plain('Instale o que faltar com: python -m pip install <pacote>', INNER - 2)}{Style.RESET_ALL}"))
+        lines.append(hsep())
     lines.append(brow(center(f"{Fore.LIGHTBLACK_EX}[ V / ESC ] VOLTAR AO CONSOLE{Style.RESET_ALL}", INNER)))
     lines.append(bbot())
     return "\n".join(lines)

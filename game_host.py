@@ -8,8 +8,8 @@ virtual. O host desenha o frame do BoxConsole e encaixa essa superfície na áre
 do jogo. Flip/update, mouse e eventos são traduzidos para as coordenadas da
 superfície virtual.
 
-Jogos que não são Pygame (como o Pac-Man, que roda no terminal) continuam no
-modo externo. Jogos que abrem janelas próprias de outra biblioteca também são
+Jogos que não são Pygame (ou que dependem de um terminal) continuam no modo
+externo. Jogos que abrem janelas próprias de outra biblioteca também são
 enviados para o modo externo.
 """
 
@@ -74,8 +74,10 @@ class GameHost:
     # ------------------------------------------------------------------
 
     def run(self) -> str:
-        self.install()
         try:
+            # install() também fica dentro do try: se um monkeypatch falhar
+            # no meio, o uninstall() ainda restaura o que já foi trocado.
+            self.install()
             # Eventos pendentes do menu (clique em JOGAR, teclas, QUIT) não
             # podem vazar para o jogo.
             pygame.event.clear()
@@ -242,15 +244,27 @@ class GameHost:
     # Display virtual
     # ------------------------------------------------------------------
 
+    def _default_size(self) -> tuple[int, int]:
+        """Resolução preferida do catálogo, usada quando o jogo pede (0, 0)."""
+        perfil = self.game.get("perfil") or {}
+        res = perfil.get("res")
+        try:
+            width, height = int(res[0]), int(res[1])
+        except (TypeError, ValueError, IndexError):
+            return (960, 540)
+        if width <= 0 or height <= 0:
+            return (960, 540)
+        return (width, height)
+
     def _set_mode(self, size=(0, 0), flags=0, depth=0, *args, **kwargs):
         if flags & pygame.OPENGL:
             raise EmbeddingUnsupported("O jogo pede uma janela OpenGL.")
         try:
             width, height = int(size[0]), int(size[1])
         except Exception:
-            width, height = 960, 540
+            width, height = self._default_size()
         if width <= 0 or height <= 0:
-            width, height = 960, 540
+            width, height = self._default_size()
 
         self.virtual_size = (width, height)
         self.virtual_surface = pygame.Surface((width, height)).convert()
@@ -259,7 +273,7 @@ class GameHost:
 
     def _get_surface(self):
         if self.virtual_surface is None:
-            return self._set_mode((960, 540))
+            return self._set_mode((0, 0))
         return self.virtual_surface
 
     def _get_window_size(self):
@@ -290,6 +304,47 @@ class GameHost:
     def draw_loading(self) -> None:
         self.launcher.draw_game_frame(self.game, self)
 
+    def _check_escape_events(self) -> None:
+        """Sai pelo F12/botão mesmo se o jogo não consumir eventos.
+
+        ``pygame.event.peek`` só devolve bool, então retiramos os eventos do
+        tipo desejado e os recolocamos na fila logo em seguida. Assim o jogo
+        continua recebendo tudo normalmente, mas o atalho é visto no flip.
+        """
+        try:
+            key_events = pygame.event.get(pygame.KEYDOWN)
+        except Exception:
+            key_events = []
+        for event in key_events:
+            if event.key == pygame.K_F12:
+                raise EmbeddedExit("atalho de saida")
+            if event.key == pygame.K_q and bool(
+                getattr(event, "mod", 0) & pygame.KMOD_CTRL
+            ):
+                raise EmbeddedExit("atalho de saida")
+        for event in key_events:
+            try:
+                pygame.event.post(event)
+            except Exception:
+                pass
+
+        if self.exit_button_rect.w <= 0:
+            return
+        try:
+            click_events = pygame.event.get(pygame.MOUSEBUTTONDOWN)
+        except Exception:
+            return
+        for event in click_events:
+            if event.button == 1 and self.exit_button_rect.collidepoint(
+                self.launcher.to_virtual(event.pos)
+            ):
+                raise EmbeddedExit("botao voltar")
+        for event in click_events:
+            try:
+                pygame.event.post(event)
+            except Exception:
+                pass
+
     def render(self) -> None:
         if self._rendering:
             return
@@ -300,6 +355,10 @@ class GameHost:
         self._last_render_ms = now
         self._rendering = True
         try:
+            # Alguns jogos só chamam event.get() em menus internos. Verificar
+            # o atalho no próprio flip garante que F12/voltar saia no próximo
+            # frame mesmo que o jogo não esteja lendo eventos naquele laço.
+            self._check_escape_events()
             self.frames_rendered += 1
             if self.max_frames is not None and self.frames_rendered > self.max_frames:
                 raise EmbeddedExit("max_frames")
@@ -407,14 +466,25 @@ class GameHost:
         event = self.original["event_wait"](*args, **kwargs)  # type: ignore[operator]
         return self._transform_event(event)
 
+    @staticmethod
+    def _timer_event_type(event) -> int | None:
+        if isinstance(event, int):
+            return event
+        # pygame.time.set_timer também aceita pygame.event.Event.
+        value = getattr(event, "type", None)
+        return value if isinstance(value, int) else None
+
     def _set_timer(self, event, millis, *args, **kwargs):
         if millis:
-            if isinstance(event, int):
-                self.timers.add(event)
-            elif isinstance(event, (list, tuple)):
-                self.timers.update(
-                    item for item in event if isinstance(item, int)
-                )
+            if isinstance(event, (list, tuple)):
+                for item in event:
+                    event_type = self._timer_event_type(item)
+                    if event_type is not None:
+                        self.timers.add(event_type)
+            else:
+                event_type = self._timer_event_type(event)
+                if event_type is not None:
+                    self.timers.add(event_type)
         return self.original["set_timer"](event, millis, *args, **kwargs)  # type: ignore[operator]
 
     # ------------------------------------------------------------------
