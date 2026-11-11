@@ -1,5 +1,6 @@
 import pygame as pg
 import math
+from collections import OrderedDict
 from settings import *
 
 
@@ -9,25 +10,54 @@ class RayCasting:
         self.ray_casting_result = []
         self.objects_to_render = []
         self.textures = self.game.object_renderer.wall_textures
+        # Cada quadro produz até NUM_RAYS escalas de uma coluna de parede.
+        # Em ARM, reutilizar as combinações recentes reduz bastante alocações
+        # temporárias sem manter um atlas enorme na RAM.
+        self.wall_column_cache = OrderedDict()
+        self.max_cached_columns = 512
+
+    def get_wall_column(self, texture, source_y, source_height, source_x, output_height):
+        """Retorna uma coluna de parede escalada, usando LRU pequeno."""
+        source_y = max(0, int(source_y))
+        source_height = max(1, int(source_height))
+        source_x = max(0, min(TEXTURE_SIZE - SCALE, int(source_x)))
+        # Dois pixels de precisão são suficientes nesta resolução e aumentam
+        # muito a chance de reaproveitar a mesma escala entre raios.
+        output_height = max(1, min(HEIGHT, int(output_height) // 2 * 2))
+        key = (texture, source_x, source_y, source_height, output_height)
+        cached = self.wall_column_cache.get(key)
+        if cached is not None:
+            self.wall_column_cache.move_to_end(key)
+            return cached
+
+        column = self.textures[texture].subsurface(
+            source_x, source_y, SCALE, source_height
+        )
+        cached = pg.transform.scale(column, (SCALE, output_height))
+        self.wall_column_cache[key] = cached
+        if len(self.wall_column_cache) > self.max_cached_columns:
+            self.wall_column_cache.popitem(last=False)
+        return cached
 
     def get_objects_to_render(self):
         self.objects_to_render = []
         for ray, values in enumerate(self.ray_casting_result):
             depth, proj_height, texture, offset = values
+            source_x = offset * (TEXTURE_SIZE - SCALE)
 
             if proj_height < HEIGHT:
-                wall_column = self.textures[texture].subsurface(
-                    offset * (TEXTURE_SIZE - SCALE), 0, SCALE, TEXTURE_SIZE
+                height = max(1, int(proj_height))
+                wall_column = self.get_wall_column(
+                    texture, 0, TEXTURE_SIZE, source_x, height
                 )
-                wall_column = pg.transform.scale(wall_column, (SCALE, proj_height))
-                wall_pos = (ray * SCALE, HALF_HEIGHT - proj_height // 2)
+                wall_pos = (ray * SCALE, HALF_HEIGHT - height // 2)
             else:
                 texture_height = TEXTURE_SIZE * HEIGHT / proj_height
-                wall_column = self.textures[texture].subsurface(
-                    offset * (TEXTURE_SIZE - SCALE), HALF_TEXTURE_SIZE - texture_height // 2,
-                    SCALE, texture_height
+                source_height = max(1, int(texture_height))
+                source_y = HALF_TEXTURE_SIZE - source_height // 2
+                wall_column = self.get_wall_column(
+                    texture, source_y, source_height, source_x, HEIGHT
                 )
-                wall_column = pg.transform.scale(wall_column, (SCALE, HEIGHT))
                 wall_pos = (ray * SCALE, 0)
 
             self.objects_to_render.append((depth, wall_column, wall_pos))

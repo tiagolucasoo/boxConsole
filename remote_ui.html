@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070a10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>BoxConsole · Controle</title>
+<style>
+  :root{
+    --bg:#070a10;
+    --panel:#0f1520;
+    --panel-2:#141d2b;
+    --text:#eef2ff;
+    --muted:#8b98b3;
+    --faint:#58657d;
+    --line:rgba(255,255,255,.09);
+    --accent:#22d3ee;
+    --green:#4ade80;
+    --red:#fb7185;
+    --amber:#fbbf24;
+    --violet:#a78bfa;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{min-height:100%;margin:0}
+  body{
+    background:
+      radial-gradient(1100px 600px at 88% -12%, color-mix(in srgb,var(--accent) 14%, transparent), transparent 62%),
+      radial-gradient(900px 520px at -12% 104%, rgba(232,121,249,.11), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overscroll-behavior:none;
+    touch-action:none;
+    -webkit-touch-callout:none;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  body::before{
+    content:"";
+    position:fixed;inset:0;pointer-events:none;opacity:.32;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:44px 44px;
+    mask-image:radial-gradient(circle at 50% 20%,#000 20%,transparent 80%);
+  }
+  .app{
+    position:relative;
+    z-index:1;
+    width:100%;max-width:540px;
+    min-height:100dvh;
+    margin:0 auto;
+    padding:calc(14px + var(--safe-top)) 16px calc(12px + var(--safe-bottom));
+    display:flex;flex-direction:column;gap:12px;
+  }
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:2px}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0}
+  .logo{
+    width:44px;height:44px;flex:0 0 auto;border-radius:13px;
+    display:grid;place-items:center;
+    font-weight:900;font-size:15px;letter-spacing:-.6px;color:#061018;
+    background:linear-gradient(135deg,#67e8f9,#22d3ee 48%,#a78bfa);
+    box-shadow:0 10px 30px rgba(34,211,238,.22),inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  .brand h1{font-size:19px;line-height:1;margin:0;letter-spacing:-.4px}
+  .brand p{font-size:9px;letter-spacing:.22em;color:var(--faint);margin:5px 0 0;font-weight:800}
+  .status{
+    display:flex;align-items:center;gap:7px;flex:0 0 auto;
+    padding:7px 10px;border:1px solid var(--line);border-radius:999px;
+    background:rgba(15,21,32,.72);color:var(--muted);
+    font-size:11px;font-weight:700;letter-spacing:.02em;
+  }
+  .dot{width:7px;height:7px;border-radius:99px;background:var(--muted);box-shadow:0 0 0 4px rgba(139,152,179,.09)}
+  .status.online .dot{background:var(--green);box-shadow:0 0 0 4px rgba(74,222,128,.13),0 0 14px rgba(74,222,128,.6)}
+  .status.offline .dot{background:var(--red);box-shadow:0 0 0 4px rgba(251,113,133,.12);animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .game-card{
+    position:relative;overflow:hidden;
+    padding:14px 16px 13px;border:1px solid var(--line);border-radius:18px;
+    background:linear-gradient(135deg,rgba(20,29,43,.94),rgba(15,21,32,.9));
+    box-shadow:0 18px 40px rgba(0,0,0,.24);
+  }
+  .game-card::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+    background:linear-gradient(var(--accent),transparent);
+    box-shadow:0 0 22px var(--accent);
+  }
+  .eyebrow{font-size:9px;font-weight:900;letter-spacing:.24em;color:var(--faint);margin:0 0 5px}
+  #gameName{font-size:23px;line-height:1.1;letter-spacing:-.5px;margin:0;color:var(--text)}
+  #gameSubtitle{font-size:12px;color:var(--muted);margin:5px 0 0}
+  .hint{
+    margin-top:10px;padding-top:9px;border-top:1px solid var(--line);
+    font-size:11px;line-height:1.4;color:var(--faint);
+  }
+  .controller{
+    display:grid;grid-template-columns:minmax(146px,.92fr) minmax(164px,1.08fr);
+    gap:12px;align-items:center;padding:2px 0;
+  }
+  .controller.solo{grid-template-columns:1fr}
+  .controller.solo .zone-move{display:none}
+  .zone{min-width:0}
+  .zone-label{font-size:9px;font-weight:900;letter-spacing:.22em;color:var(--faint);margin:0 0 8px 4px}
+  .dpad{
+    position:relative;width:min(100%,224px);aspect-ratio:1;margin:0 auto;
+    filter:drop-shadow(0 16px 20px rgba(0,0,0,.26));
+  }
+  .dpad button,.dpad .hub{
+    position:absolute;width:32.5%;height:32.5%;border-radius:18px;
+    border:1px solid rgba(255,255,255,.11);
+    background:linear-gradient(145deg,#1b2638,#101724 68%);
+    color:#dbe7ff;font-size:17px;font-weight:900;
+    display:grid;place-items:center;padding:0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 4px 0 #070b12,0 8px 18px rgba(0,0,0,.2);
+    touch-action:none;user-select:none;cursor:pointer;
+    transition:transform .06s ease,background .1s ease,box-shadow .06s ease;
+  }
+  .dpad button:active,.dpad button.pressed{
+    transform:translateY(2px) scale(.97);
+    background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 30%,#1b2638),#111a29);
+    box-shadow:inset 0 0 24px color-mix(in srgb,var(--accent) 20%,transparent),0 1px 0 #070b12;
+    border-color:color-mix(in srgb,var(--accent) 55%,transparent);
+    color:#fff;
+  }
+  .dpad .up{left:33.75%;top:0}
+  .dpad .down{left:33.75%;bottom:0}
+  .dpad .left{left:0;top:33.75%}
+  .dpad .right{right:0;top:33.75%}
+  .dpad .hub{
+    left:33.75%;top:33.75%;border-radius:999px;
+    background:radial-gradient(circle at 50% 38%,#202d42,#0b111b 72%);
+    box-shadow:inset 0 0 0 8px rgba(255,255,255,.018),inset 0 0 26px rgba(0,0,0,.45);
+  }
+  .dpad .hub::after{
+    content:"";width:7px;height:7px;border-radius:99px;background:var(--accent);
+    box-shadow:0 0 14px color-mix(in srgb,var(--accent) 75%,transparent);opacity:.85;
+  }
+  .primary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .primary.count-1{grid-template-columns:1fr}
+  .primary.count-3 .action:last-child{grid-column:1/-1}
+  .action{
+    position:relative;overflow:hidden;
+    min-height:76px;border-radius:20px;border:1px solid rgba(255,255,255,.12);
+    padding:10px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+    color:#fff;font-weight:900;letter-spacing:.01em;cursor:pointer;
+    background:linear-gradient(145deg,rgba(30,43,64,.98),rgba(14,20,31,.98));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 5px 0 #070b12,0 10px 22px rgba(0,0,0,.22);
+    touch-action:none;user-select:none;
+    transition:transform .06s ease,box-shadow .06s ease,filter .1s ease;
+  }
+  .action::before{
+    content:"";position:absolute;inset:-40% -20% auto;height:80%;
+    background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--role) 42%,transparent),transparent 68%);
+    opacity:.65;pointer-events:none;
+  }
+  .action .glyph{
+    position:relative;z-index:1;display:grid;place-items:center;
+    width:24px;height:24px;border-radius:999px;
+    background:color-mix(in srgb,var(--role) 24%,#0b111b);
+    border:1px solid color-mix(in srgb,var(--role) 50%,transparent);
+    color:#fff;font-size:10px;letter-spacing:0;line-height:1;
+  }
+  .action .label{position:relative;z-index:1;font-size:11px;line-height:1.15;text-align:center;text-transform:uppercase}
+  .primary.count-1 .action{min-height:154px;aspect-ratio:auto}
+  .primary.count-1 .action .label{font-size:15px}
+  .primary.count-1 .action .glyph{width:38px;height:38px;font-size:14px}
+  .action.role-a{--role:#4ade80}
+  .action.role-b{--role:#fb7185}
+  .action.role-x{--role:#60a5fa}
+  .action.role-y{--role:#fbbf24}
+  .action:active,.action.pressed{
+    transform:translateY(3px) scale(.98);
+    box-shadow:inset 0 0 28px color-mix(in srgb,var(--role) 16%,transparent),0 2px 0 #070b12;
+    border-color:color-mix(in srgb,var(--role) 60%,transparent);
+    filter:brightness(1.14);
+  }
+  .secondary{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px}
+  .secondary:empty{display:none}
+  .chip{
+    min-height:42px;border-radius:13px;border:1px solid var(--line);
+    background:linear-gradient(160deg,#161f2f,#0d131e);
+    color:#cbd7ee;font-size:10px;font-weight:900;letter-spacing:.07em;
+    padding:7px 8px;cursor:pointer;touch-action:none;user-select:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 #070b12;
+    transition:transform .06s ease,background .1s ease,border-color .1s ease;
+  }
+  .chip:active,.chip.pressed{
+    transform:translateY(2px);
+    background:color-mix(in srgb,var(--accent) 16%,#101826);
+    border-color:color-mix(in srgb,var(--accent) 45%,transparent);
+    color:#fff;box-shadow:inset 0 0 18px color-mix(in srgb,var(--accent) 12%,transparent);
+  }
+  .chip.turn{background:linear-gradient(160deg,#1c2438,#101827);color:#a5b8d9}
+  .numpad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+  .numpad:empty{display:none}
+  .num{
+    aspect-ratio:1.06;border-radius:12px;border:1px solid var(--line);
+    background:linear-gradient(160deg,#172132,#0d131e);
+    color:#dce8ff;font-size:15px;font-weight:900;cursor:pointer;
+    touch-action:none;user-select:none;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 #070b12;
+    transition:transform .06s ease,background .1s ease;
+  }
+  .num:active,.num.pressed{
+    transform:translateY(2px);
+    background:color-mix(in srgb,var(--accent) 24%,#101826);
+    border-color:color-mix(in srgb,var(--accent) 55%,transparent);
+    box-shadow:inset 0 0 16px color-mix(in srgb,var(--accent) 16%,transparent);
+  }
+  footer.bottom{
+    margin-top:auto;padding-top:5px;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .footer-note{display:flex;align-items:center;gap:6px;color:var(--faint);font-size:10px;font-weight:700;letter-spacing:.03em}
+  .footer-note .dot{width:5px;height:5px}
+  .footer-actions{display:flex;align-items:center;gap:7px}
+  .ghost{
+    min-height:38px;padding:0 13px;border-radius:11px;border:1px solid var(--line);
+    background:rgba(15,21,32,.7);color:var(--muted);font-size:10px;font-weight:900;letter-spacing:.08em;
+    cursor:pointer;touch-action:none;user-select:none;
+  }
+  .ghost:active{transform:translateY(1px);color:#fff;border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+  .ghost.menu{border-color:color-mix(in srgb,var(--accent) 38%,transparent);color:var(--accent)}
+  .toast{
+    position:fixed;left:50%;bottom:calc(22px + var(--safe-bottom));transform:translate(-50%,18px);
+    max-width:calc(100vw - 36px);padding:10px 14px;border-radius:11px;
+    background:#111a29;border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);
+    color:#e7efff;font-size:12px;font-weight:700;text-align:center;
+    opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;z-index:20;
+    box-shadow:0 16px 40px rgba(0,0,0,.35)
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  @media (max-width:390px){
+    .app{padding-left:12px;padding-right:12px;gap:10px}
+    .controller{grid-template-columns:minmax(132px,.9fr) minmax(150px,1.1fr);gap:9px}
+    .primary{gap:8px}
+    .action{min-height:70px;border-radius:17px}
+    .action .label{font-size:10px}
+    #gameName{font-size:21px}
+  }
+  @media (orientation:landscape) and (max-height:560px){
+    .app{max-width:900px;padding-top:calc(8px + var(--safe-top));gap:8px}
+    header.top{padding-top:0}
+    .logo{width:38px;height:38px;border-radius:11px;font-size:13px}
+    .brand h1{font-size:17px}
+    .game-card{padding:9px 14px 8px}
+    #gameName{font-size:19px}
+    #gameSubtitle{margin-top:3px}
+    .hint{display:none}
+    .controller{grid-template-columns:minmax(150px,210px) 1fr;gap:16px}
+    .dpad{width:min(31vh,200px)}
+    .primary{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .primary.count-3 .action:last-child{grid-column:auto}
+    .primary.count-1{grid-template-columns:1fr}
+    .action{min-height:70px;min-width:64px}
+    .primary.count-1 .action{min-height:110px}
+    .secondary{grid-template-columns:repeat(auto-fit,minmax(82px,1fr))}
+    .numpad{grid-template-columns:repeat(10,minmax(0,1fr))}
+    .num{aspect-ratio:1;font-size:13px}
+    footer.bottom{padding-top:0}
+  }
+  @media (min-width:760px){
+    .app{max-width:700px}
+    .controller{grid-template-columns:minmax(190px,.9fr) minmax(240px,1.1fr);gap:26px}
+    .dpad{width:min(100%,260px)}
+    #gameName{font-size:26px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">BC</div>
+      <div>
+        <h1>BoxConsole</h1>
+        <p>CONTROLE REMOTO</p>
+      </div>
+    </div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Conectando…</span></div>
+  </header>
+
+  <section class="game-card">
+    <p class="eyebrow">JOGO ATUAL</p>
+    <h2 id="gameName">—</h2>
+    <p id="gameSubtitle">Aguardando o servidor na mesma rede…</p>
+    <div class="hint" id="hint"></div>
+  </section>
+
+  <main class="controller" id="controller">
+    <section class="zone zone-move">
+      <p class="zone-label">MOVER</p>
+      <div class="dpad" id="dpad"></div>
+    </section>
+    <section class="zone zone-act">
+      <p class="zone-label">AÇÕES</p>
+      <div class="primary" id="primary"></div>
+    </section>
+  </main>
+
+  <section class="secondary" id="secondary"></section>
+  <section class="numpad" id="numpad"></section>
+
+  <footer class="bottom">
+    <div class="footer-note"><span class="dot"></span> Mesma rede Wi-Fi</div>
+    <div class="footer-actions" id="globalActions">
+      <button class="ghost" id="releaseBtn" type="button">SOLTAR</button>
+    </div>
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    profile: null,
+    gameId: null,
+    actions: new Map(),
+    held: new Map(),
+    online: false,
+    lastHeartbeat: 0,
+    toastTimer: 0,
+    wakeLock: null,
+    polling: 0,
+  };
+
+  let sendChain = Promise.resolve();
+
+  function setOnline(online) {
+    if (state.online === online) return;
+    state.online = online;
+    const status = $("status");
+    status.classList.toggle("online", online);
+    status.classList.toggle("offline", !online);
+    $("statusText").textContent = online ? "Conectado" : "Sem conexão";
+  }
+
+  function toast(message) {
+    const el = $("toast");
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(state.toastTimer);
+    state.toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+  }
+
+  function enqueueRequest(path, payload, label) {
+    sendChain = sendChain.then(async () => {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+        cache: "no-store",
+        keepalive: true,
+      });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      setOnline(true);
+    }).catch(() => {
+      setOnline(false);
+      if (label) toast(label);
+    });
+  }
+
+  function sendAction(actionId, down) {
+    enqueueRequest("/api/action", { action: actionId, down: !!down });
+  }
+
+  function heartbeat() {
+    const now = Date.now();
+    if (now - state.lastHeartbeat < 650) return;
+    state.lastHeartbeat = now;
+    enqueueRequest("/api/heartbeat", {});
+  }
+
+  function makeButton(className, action, inner) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.dataset.action = action.id;
+    button.setAttribute("aria-label", action.label);
+    if (inner) button.innerHTML = inner;
+    bindHold(button, action);
+    return button;
+  }
+
+  function bindHold(button, action) {
+    const onStart = (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      const pointerId = event.pointerId !== undefined ? event.pointerId : "touch";
+      if (state.held.has(pointerId)) return;
+      try { button.setPointerCapture(event.pointerId); } catch (_) {}
+      state.held.set(pointerId, {
+        action,
+        button,
+        startTime: Date.now(),
+        lastRepeat: Date.now(),
+      });
+      button.classList.add("pressed");
+      if (navigator.vibrate) { try { navigator.vibrate(7); } catch (_) {} }
+      sendAction(action.id, true);
+    };
+
+    const onEnd = (event) => {
+      const pointerId = event.pointerId !== undefined ? event.pointerId : "touch";
+      const item = state.held.get(pointerId);
+      if (!item) return;
+      state.held.delete(pointerId);
+      const stillHeld = Array.from(state.held.values()).some((other) => other.action.id === action.id);
+      if (!stillHeld) {
+        button.classList.remove("pressed");
+        sendAction(action.id, false);
+      }
+    };
+
+    button.addEventListener("pointerdown", onStart, { passive: false });
+    button.addEventListener("pointerup", onEnd, { passive: false });
+    button.addEventListener("pointercancel", onEnd, { passive: false });
+    button.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+    button.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
+  function actionMapOf(profile) {
+    const map = new Map();
+    for (const action of [...profile.dpad, ...profile.primary, ...profile.secondary]) {
+      map.set(action.id, action);
+    }
+    for (const action of profile.global || []) map.set(action.id, action);
+    return map;
+  }
+
+  function buildDpad(profile) {
+    const dpad = $("dpad");
+    dpad.textContent = "";
+    for (const action of profile.dpad) {
+      const button = makeButton("dpad-btn " + action.id, action, action.label);
+      dpad.appendChild(button);
+    }
+    const hub = document.createElement("div");
+    hub.className = "hub";
+    dpad.appendChild(hub);
+    $("controller").classList.toggle("solo", profile.dpad.length === 0);
+  }
+
+  function buildPrimary(profile) {
+    const primary = $("primary");
+    primary.textContent = "";
+    primary.className = "primary count-" + Math.min(4, Math.max(1, profile.primary.length));
+    for (const action of profile.primary) {
+      const glyph = (action.role || "?").toUpperCase();
+      const button = makeButton("action role-" + (action.role || "a"), action,
+        '<span class="glyph">' + glyph + '</span><span class="label"></span>');
+      button.querySelector(".label").textContent = action.label;
+      primary.appendChild(button);
+    }
+  }
+
+  function buildSecondary(profile) {
+    const secondary = $("secondary");
+    secondary.textContent = "";
+    for (const action of profile.secondary) {
+      const button = makeButton("chip" + (action.kind === "turn" ? " turn" : ""), action);
+      button.textContent = action.label;
+      secondary.appendChild(button);
+    }
+  }
+
+  function buildNumpad(profile) {
+    const numpad = $("numpad");
+    numpad.textContent = "";
+    if (!profile.numpad) return;
+    for (const digit of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]) {
+      const action = { id: "num" + digit, label: digit, kind: "key", repeat: false };
+      const button = makeButton("num", action);
+      button.textContent = digit;
+      numpad.appendChild(button);
+    }
+  }
+
+  function buildGlobal(profile) {
+    const holder = $("globalActions");
+    while (holder.children.length > 1) holder.removeChild(holder.firstElementChild);
+    const actions = profile.global || [];
+    for (const action of actions) {
+      const button = makeButton("ghost menu", action);
+      button.textContent = action.label;
+      holder.insertBefore(button, holder.firstElementChild);
+    }
+  }
+
+  function clearHeld(sendRelease) {
+    for (const item of state.held.values()) item.button.classList.remove("pressed");
+    state.held.clear();
+    document.querySelectorAll(".pressed").forEach((el) => el.classList.remove("pressed"));
+    if (sendRelease) enqueueRequest("/api/release", {});
+  }
+
+  function applyStatus(data) {
+    const profile = data.profile;
+    if (!profile) return;
+    const changed = state.gameId !== data.game.id || !state.profile;
+    state.gameId = data.game.id;
+    state.profile = profile;
+    state.actions = actionMapOf({ ...profile, global: data.global || [] });
+
+    document.documentElement.style.setProperty("--accent", profile.accent || "#22d3ee");
+    $("gameName").textContent = data.game.name || profile.name || "BoxConsole";
+    $("gameSubtitle").textContent = profile.subtitle || "";
+    $("hint").textContent = profile.hint || "";
+    document.title = "BoxConsole · " + ($("gameName").textContent || "Controle");
+
+    if (changed) {
+      clearHeld(true);
+      buildDpad(profile);
+      buildPrimary(profile);
+      buildSecondary(profile);
+      buildNumpad(profile);
+      buildGlobal({ ...profile, global: data.global || [] });
+    }
+    setOnline(true);
+  }
+
+  async function refresh() {
+    try {
+      const response = await fetch("/api/status", { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      applyStatus(await response.json());
+    } catch (_) {
+      setOnline(false);
+    }
+  }
+
+  function startPolling() {
+    if (state.polling) return;
+    refresh();
+    state.polling = setInterval(refresh, 1200);
+  }
+
+  function stopPolling() {
+    if (!state.polling) return;
+    clearInterval(state.polling);
+    state.polling = 0;
+  }
+
+  function tick() {
+    let anyHeld = false;
+    const now = Date.now();
+    const seen = new Set();
+    for (const item of state.held.values()) {
+      anyHeld = true;
+      const action = item.action;
+      const isDpad = ["up", "down", "left", "right"].includes(action.id) || ["up", "down", "left", "right"].includes(action.role);
+      const shouldRepeat = action.repeat || isDpad;
+      if (shouldRepeat && !seen.has(action.id)) {
+        seen.add(action.id);
+        if (now - item.startTime >= 200 && now - item.lastRepeat >= 85) {
+          item.lastRepeat = now;
+          sendAction(action.id, true);
+        }
+      }
+    }
+    if (anyHeld) heartbeat();
+  }
+
+  $("releaseBtn").addEventListener("click", () => {
+    clearHeld(true);
+    toast("Teclas liberadas");
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      clearHeld(true);
+      stopPolling();
+    } else {
+      startPolling();
+      if (state.wakeLock) { /* mantém a tela acordada */ }
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    clearHeld(false);
+    if (navigator.sendBeacon) {
+      try { navigator.sendBeacon("/api/release"); } catch (_) {}
+    }
+  });
+
+  async function requestWakeLock() {
+    if (!("wakeLock" in navigator) || state.wakeLock) return;
+    try {
+      state.wakeLock = await navigator.wakeLock.request("screen");
+      state.wakeLock.addEventListener("release", () => { state.wakeLock = null; });
+    } catch (_) {}
+  }
+  document.addEventListener("pointerdown", requestWakeLock, { once: true });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      clearHeld(true);
+      toast("Teclas liberadas");
+    }
+  });
+
+  setInterval(tick, 45);
+  startPolling();
+})();
+</script>
+</body>
+</html>

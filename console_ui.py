@@ -179,6 +179,7 @@ GAMES = [
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
         "perfil": {"res": (960, 540), "fps": 30},
+        "embed": False,
         "pasta": "Street_Fighter",
         "entry": "src/main.py",
         "comando": "python src/main.py",
@@ -215,6 +216,34 @@ GAMES = [
         "licenca": "Não informada na pasta",
     },
     {
+        "id": "sonic",
+        "nome": "Sonic Game",
+        "genero": "Runner 2D · Plataforma",
+        "players": "1 jogador",
+        "descricao": (
+            "Corra com o Sonic desviando de obstáculos, inimigos voadores e "
+            "coletando corações para bater o recorde de distância."
+        ),
+        "controles": [
+            ("Espaço / W / ↑ / Enter", "pular e iniciar corrida"),
+            ("ESC / Q / F12", "sair ou voltar ao menu"),
+            ("Controle Celular", "botão A ou ▲ para pular, B volta"),
+        ],
+        "stack": ["Python", "Pygame"],
+        "deps": ["pygame"],
+        # O jogo usa delta time: 30 FPS conserva a velocidade e reduz muito
+        # o trabalho de rasterização no H3.
+        "perfil": {"res": (960, 540), "fps": 30},
+        "pasta": "Sonic-Game",
+        "entry": "main.py",
+        "comando": "python main.py",
+        "cor": Fore.CYAN,
+        "repo": None,
+        "site": None,
+        "autor": "Comunidade Pygame",
+        "licenca": "Open Source",
+    },
+    {
         "id": "donkeyking",
         "nome": "Donkey King",
         "genero": "Plataforma 2D · Arcade",
@@ -232,7 +261,8 @@ GAMES = [
         ],
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
-        "perfil": {"res": (1300, 630), "fps": 60},
+        # A física usa acumulador fixo; o limite é apenas de apresentação.
+        "perfil": {"res": (1300, 630), "fps": 30},
         "pasta": "DonkeyKing",
         "entry": "DonkeyMain.py",
         "comando": "python DonkeyMain.py",
@@ -260,6 +290,7 @@ GAMES = [
         "stack": ["Python", "Pygame", "Tiled"],
         "deps": ["pygame"],
         "perfil": {"res": (960, 540), "fps": 30},
+        "embed": False,
         "pasta": "pyzelda-rpg",
         "entry": "code/main.py",
         "comando": "python code/main.py",
@@ -506,6 +537,7 @@ GAMES = [
         "stack": ["Python", "Pygame"],
         "deps": ["pygame"],
         "perfil": {"res": (900, 525), "fps": 30},
+        "embed": False,
         "pasta": "SPEED-RACER",
         "entry": "Speed Racer.py",
         "comando": 'python "Speed Racer.py"',

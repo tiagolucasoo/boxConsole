@@ -29,6 +29,7 @@ import pygame
 import console_ui as catalog
 import diagnostics
 import game_host
+import remote_control
 
 # ---------------------------------------------------------------------------
 # Constantes visuais
@@ -293,6 +294,12 @@ class Launcher:
         self._quitting = False
 
         self.create_display()
+        # O controle remoto fica disponível durante todo o menu e os jogos.
+        # Se a porta estiver ocupada, tenta as próximas sem impedir o launcher.
+        self.remote_info = remote_control.start()
+        if self.remote_info.get("running"):
+            self.toast = f"Controle no celular: {self.remote_info['url']}"
+            self.toast_until = time.monotonic() + 6.0
         self.init_audio()
         self.init_joysticks()
 
@@ -694,6 +701,17 @@ class Launcher:
                 (VW - 64, 86),
                 anchor="topright",
             )
+            remote_url = remote_control.url()
+            if remote_url:
+                draw_text(
+                    surface,
+                    ellipsize(f"CONTROLE  {remote_url}", get_font(12, True), 620),
+                    12,
+                    GREEN,
+                    (VW - 64, 104),
+                    anchor="topright",
+                    bold=True,
+                )
         else:
             draw_text(
                 surface,
@@ -713,6 +731,17 @@ class Launcher:
                 anchor="topright",
                 bold=True,
             )
+            remote_url = remote_control.url()
+            if remote_url:
+                draw_text(
+                    surface,
+                    f"CONTROLE  {remote_url}",
+                    13,
+                    GREEN,
+                    (VW - 64, 88),
+                    anchor="topright",
+                    bold=True,
+                )
         pygame.draw.line(surface, (46, 54, 75), (64, 122), (VW - 64, 122), 2)
 
     def _draw_game_footer(self, surface, accent, button) -> None:
@@ -792,7 +821,15 @@ class Launcher:
         # O cabeçalho, a moldura e o rodapé são iguais em todos os frames.
         # Monta uma única vez e só blita o jogo por cima; evita renderizar
         # textos e formas de tela cheia a cada frame do jogo.
-        key = (game["id"], sw, sh, gw, gh, tuple(panel_rect) if panel_rect else None)
+        key = (
+            game["id"],
+            sw,
+            sh,
+            gw,
+            gh,
+            tuple(panel_rect) if panel_rect else None,
+            remote_control.url(),
+        )
         if key != self._game_chrome_key or self._game_chrome is None:
             chrome = pygame.Surface((VW, VH)).convert()
             chrome.blit(self.bg, (0, 0))
@@ -950,7 +987,12 @@ class Launcher:
 
     def draw_menu(self, show_hints: bool = True, show_toast: bool = True) -> None:
         assert self.canvas is not None and self.bg is not None
-        key = (self.selected, bool(show_hints), self._status_version)
+        key = (
+            self.selected,
+            bool(show_hints),
+            self._status_version,
+            remote_control.url(),
+        )
         if self._menu_cache is not None and self._menu_cache_key == key:
             self.canvas.blit(self._menu_cache, (0, 0))
         else:
@@ -1835,11 +1877,14 @@ class Launcher:
 
 
 def main(fullscreen: bool = True) -> None:
-    app = Launcher(fullscreen=fullscreen)
+    app = None
     try:
+        app = Launcher(fullscreen=fullscreen)
         app.run()
     finally:
-        app.stop_menu_sounds()
+        if app is not None:
+            app.stop_menu_sounds()
+        remote_control.stop()
         pygame.quit()
 
 

@@ -25,6 +25,7 @@ from pathlib import Path
 import pygame
 
 import console_ui as catalog
+import remote_control
 
 
 class EmbeddedExit(BaseException):
@@ -53,6 +54,14 @@ class GameHost:
         # Alguns jogos chamam pygame.display.flip() sem limitar o FPS. Sem
         # este teto, um jogo simples pode ocupar 100% da CPU do TV box.
         self._frame_clock = pygame.time.Clock()
+        # O perfil é a fonte de verdade do teto do host. Jogos que já usam um
+        # clock menor continuam iguais; os demais não desenham frames que a TV
+        # box não consegue aproveitar.
+        perfil = game.get("perfil") or {}
+        try:
+            self.max_fps = max(1, int(perfil.get("fps", 30)))
+        except (TypeError, ValueError):
+            self.max_fps = 30
         # Alguns jogos chamam update() e flip() no mesmo frame. Sem isso, o
         # host desenharia duas vezes e o relógio dormiria duas vezes.
         self._last_render_ms = -1000
@@ -78,6 +87,9 @@ class GameHost:
             # install() também fica dentro do try: se um monkeypatch falhar
             # no meio, o uninstall() ainda restaura o que já foi trocado.
             self.install()
+            # O celular passa a mostrar o controle deste jogo. Também solta
+            # teclas que tenham ficado presas no menu.
+            remote_control.set_game(self.game["id"])
             # Eventos pendentes do menu (clique em JOGAR, teclas, QUIT) não
             # podem vazar para o jogo.
             pygame.event.clear()
@@ -229,6 +241,7 @@ class GameHost:
 
         pygame.display.set_caption("BoxConsole — Jogos Arcade")
         pygame.key.set_repeat(250, 85)
+        remote_control.set_game("menu")
         pygame.event.clear()
 
         # Libera a superfície virtual e os módulos carregados pelo jogo antes
@@ -362,9 +375,10 @@ class GameHost:
             self.frames_rendered += 1
             if self.max_frames is not None and self.frames_rendered > self.max_frames:
                 raise EmbeddedExit("max_frames")
-            # Teto de 60 FPS. Jogos que já têm clock.tick(60) não são
-            # afetados; jogos sem limite deixam de saturar a CPU.
-            self._frame_clock.tick(60)
+            # Teto definido no catálogo. Isto também protege jogos cujo loop
+            # esquece de chamar Clock.tick(). Perfis de 60 FPS são mantidos
+            # somente nos jogos que dependem de lógica por frame.
+            self._frame_clock.tick(self.max_fps)
             self.launcher.draw_game_frame(self.game, self)
         finally:
             self._rendering = False
@@ -422,6 +436,10 @@ class GameHost:
 
     def _transform_event(self, event):
         if event.type == pygame.NOEVENT:
+            return event
+        # Cliques vindos do celular já estão em coordenadas do jogo. Não
+        # devem ser convertidos como se fossem da janela real.
+        if getattr(event, "remote", False):
             return event
 
         if event.type == pygame.KEYDOWN:

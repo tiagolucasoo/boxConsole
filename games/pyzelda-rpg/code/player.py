@@ -1,6 +1,6 @@
 import pygame
 from settings import weapon_data, magic_data, HITBOX_OFFSET
-from support import get_path, import_folder
+from support import get_path, import_folder, load_image, load_sound
 from entity import Entity
 
 
@@ -35,7 +35,7 @@ class Player(Entity):
     def __init__(self, pos, groups, obstacle_sprites, create_attack, destroy_attack, create_magic):
         super().__init__(groups, pos)
         player_path = get_path('../graphics/test/player.png')
-        self.image = pygame.image.load(player_path).convert_alpha()
+        self.image = load_image(player_path)
         self.rect = self.image.get_rect(topleft=pos)
         self.hitbox = self.rect.inflate(-6, HITBOX_OFFSET['player'])
 
@@ -100,8 +100,7 @@ class Player(Entity):
         self.invulnerability_duration = 500
 
         # sound
-        self.weapon_attack_sound = pygame.mixer.Sound(
-            get_path('../audio/sword.wav'))
+        self.weapon_attack_sound = load_sound(get_path('../audio/sword.wav'))
         self.weapon_attack_sound.set_volume(0.2)
 
     def import_player_assets(self):

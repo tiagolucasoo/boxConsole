@@ -3,6 +3,17 @@ from support import get_path, import_folder
 from random import choice
 
 
+_font_cache = {}
+
+
+def get_font(size):
+    font = _font_cache.get(size)
+    if font is None:
+        font = pygame.font.Font(get_path('../font/joystix.ttf'), size)
+        _font_cache[size] = font
+    return font
+
+
 class AnimationPlayer:
     def create_grass_particles(self, pos, groups):
         grass_animation_frames = choice(self.frames['leaf'])
@@ -93,7 +104,7 @@ class AnimationPlayer:
 class FloatingText(pygame.sprite.Sprite):
     def __init__(self, text, pos, groups, color=(255, 255, 0), font_size=18, duration=1.2, rise_distance=30):
         super().__init__(groups)
-        self.font = pygame.font.Font(get_path('../font/joystix.ttf'), font_size)
+        self.font = get_font(font_size)
         self.text = text
         self.color = color
         self.image = self.font.render(self.text, True, self.color)

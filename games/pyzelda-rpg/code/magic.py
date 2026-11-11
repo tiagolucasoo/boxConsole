@@ -1,14 +1,15 @@
 import pygame
 from settings import magic_data, TILESIZE
 from random import randint
+from support import load_sound
 
 
 class MagicPlayer:
     def __init__(self, animation_player):
         self.animation_player = animation_player
         self.sounds = {
-            'heal': pygame.mixer.Sound(magic_data['heal']['spell_sound']),
-            'flame': pygame.mixer.Sound(magic_data['flame']['spell_sound'])
+            'heal': load_sound(magic_data['heal']['spell_sound']),
+            'flame': load_sound(magic_data['flame']['spell_sound'])
         }
         self.sounds['heal'].set_volume(0.5)
         self.sounds['flame'].set_volume(0.4)

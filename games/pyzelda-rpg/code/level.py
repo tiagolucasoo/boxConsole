@@ -3,7 +3,7 @@ import os
 from settings import TILESIZE, WIDTH, HEIGHT
 from tile import Tile
 from player import Player
-from support import get_path, import_csv_layout, import_folder
+from support import get_path, import_csv_layout, import_folder, load_image
 from random import choice, randint
 from weapon import Weapon
 from ui import UI
@@ -317,7 +317,7 @@ class YSortCameraGroup(pygame.sprite.Group):
 
         # floor setup
         floor_path = get_path('../graphics/tilemap/ground.png')
-        self.floor_surf = pygame.image.load(floor_path).convert()
+        self.floor_surf = load_image(floor_path, alpha=False)
         self.floor_rect = self.floor_surf.get_rect(topleft=(0, 0))
 
     def custom_draw(self, player):

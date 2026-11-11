@@ -1,7 +1,7 @@
 import pygame
 
 from settings import monster_data
-from support import import_folder, get_path
+from support import import_folder, get_path, load_sound
 from entity import Entity
 from pathfinding_utils import astar, pos_to_grid, grid_to_pos
 
@@ -53,9 +53,9 @@ class Enemy(Entity):
         self.invisibility_duration = 300
 
         # sounds
-        self.hit_sound = pygame.mixer.Sound(get_path('../audio/hit.wav'))
-        self.death_sound = pygame.mixer.Sound(get_path('../audio/death.wav'))
-        self.attack_sound = pygame.mixer.Sound(monster_data[self.monster_name]['attack_sound'])
+        self.hit_sound = load_sound(get_path('../audio/hit.wav'))
+        self.death_sound = load_sound(get_path('../audio/death.wav'))
+        self.attack_sound = load_sound(monster_data[self.monster_name]['attack_sound'])
         self.hit_sound.set_volume(0.6)
         self.death_sound.set_volume(0.6)
         self.attack_sound.set_volume(0.3)

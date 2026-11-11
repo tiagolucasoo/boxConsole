@@ -1,5 +1,6 @@
 import pygame
 from settings import UI_FONT, UI_FONT_SIZE, HEALTH_BAR_WIDTH, BAR_HEIGHT, ENERGY_BAR_WIDTH, weapon_data, magic_data, UI_BG_COLOR, UI_BORDER_COLOR, TEXT_COLOR, UI_BORDER_COLOR_ACTIVE, HEALTH_COLOR, ENERGY_COLOR, ITEM_BOX_SIZE
+from support import load_image
 
 
 class UI:
@@ -19,14 +20,14 @@ class UI:
         self.weapon_graphics = []
         for weapon in weapon_data.values():
             path = weapon['graphic']
-            weapon = pygame.image.load(path).convert_alpha()
+            weapon = load_image(path)
             self.weapon_graphics.append(weapon)
 
         # convert magic dictionary
         self.magic_graphics = []
         for magic in magic_data.values():
             path = magic['graphic']
-            magic = pygame.image.load(path).convert_alpha()
+            magic = load_image(path)
             self.magic_graphics.append(magic)
 
     def show_bar(self, current, max_amount, bg_rect, color):

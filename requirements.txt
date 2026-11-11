@@ -1,6 +1,16 @@
 # BoxConsole — dependências para TV box ARMv7
 # Requer Python 3.9+ (recomendado 3.10+ para melhor suporte do Pygame).
 # O Pygame roda o launcher e todos os jogos embutidos.
+# Auditoria de todos os imports em games/:
+# - pygame é a única dependência necessária para launcher e jogos gráficos;
+# - colorama só adiciona cores ao menu de terminal.
+# Todo o restante vem da biblioteca padrão ou de módulos locais. Em especial,
+# não instalar numpy, scipy, opencv, keyboard, pyfiglet ou Pillow para este
+# projeto: eles não são necessários e aumentam o consumo no ARMv7 com 1 GB.
+# py2exe aparece somente em compile.py (empacotamento Windows) e não é
+# requisito para executar o catálogo no Linux/ARM.
+#
+# Python 3.9+; no Linux ARM prefira python3-pygame do repositório da distro
+# quando não houver wheel compatível para pip.
 pygame>=2.0
-# Opcional: habilita cores no menu de terminal. Sem ele o menu continua.
 colorama>=0.4.6
